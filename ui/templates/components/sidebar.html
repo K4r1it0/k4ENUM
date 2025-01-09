@@ -1,0 +1,133 @@
+{% macro sidebar(active_page='') %}
+<div class="sidebar">
+    <div class="sidebar-header">
+        <a href="/" class="sidebar-brand">k4ENUM</a>
+    </div>
+    <div class="sidebar-content">
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-item {{ 'active' if active_page == 'dashboard' }}">
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/workflows" class="nav-item {{ 'active' if active_page == 'workflows' }}">
+                <i class="bi bi-diagram-2-fill"></i>
+                <span>Workflows</span>
+            </a>
+            <a href="/executions" class="nav-item {{ 'active' if active_page == 'executions' }}">
+                <i class="bi bi-play-fill"></i>
+                <span>Executions</span>
+            </a>
+        </nav>
+    </div>
+    <div class="sidebar-footer">
+        <a href="/workflow/new" class="btn btn-create">
+            <i class="bi bi-plus-lg"></i>
+            <span>New Workflow</span>
+        </a>
+    </div>
+</div>
+
+<style>
+    .sidebar {
+        width: 240px;
+        height: 100vh;
+        background: var(--dark-bg);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 1000;
+    }
+
+    .sidebar-header {
+        height: 60px;
+        padding: 0 1.25rem;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-brand {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #fff;
+        text-decoration: none;
+        letter-spacing: -0.5px;
+    }
+
+    .sidebar-content {
+        flex: 1;
+        padding: 1.25rem;
+        overflow-y: auto;
+    }
+
+    .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .nav-item i {
+        font-size: 1.1rem;
+    }
+
+    .nav-item span {
+        font-size: 0.9375rem;
+        font-weight: 500;
+    }
+
+    .nav-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+    }
+
+    .nav-item.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .sidebar-footer {
+        padding: 1.25rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .btn-create {
+        width: 100%;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: #0d6efd;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+
+    .btn-create:hover {
+        background: #0b5ed7;
+        color: #fff;
+    }
+
+    .btn-create i {
+        font-size: 1.1rem;
+    }
+</style>
+{% endmacro %} 

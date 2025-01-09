@@ -1,0 +1,12 @@
+workflow:
+  name: "testing"
+  description: "testing"
+  modules:
+    - name: "module"
+      tasks:
+        - task1:
+            command: "ls -la"
+        - task2:
+            command: "cat nonexistent_file"
+            requires:
+              - "module:task1"

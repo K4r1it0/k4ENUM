@@ -1,0 +1,1020 @@
+{% extends "base.html" %}
+
+{% block title %}k4ENUM - {{ workflow_name }} - Execution{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+
+    <style>
+        .main-content {
+        position: fixed;
+        top: calc(50px + 8px);
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+            display: flex;
+        gap: 3px;
+            overflow: hidden;
+        background: var(--theme-background);
+        }
+
+        .editor-panel {
+            flex: 1;
+            min-width: 400px;
+        background: var(--theme-surface);
+        border-radius: 8px;
+        border: 1px solid var(--border-dim);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor-toolbar {
+        height: 64px;
+        padding: 0 1.25rem;
+        border-bottom: 1px solid var(--border-dim);
+            display: flex;
+            align-items: center;
+        justify-content: space-between;
+        background: var(--theme-surface);
+    }
+
+    .toolbar-left, .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .execution-info {
+            display: flex;
+            align-items: center;
+        gap: 1rem;
+        color: var(--text-secondary);
+        }
+
+        .execution-time {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        background: var(--theme-surface-2);
+        }
+
+        .editor-container .vis-network {
+            cursor: default;
+        }
+
+        .editor-container .vis-network .vis-node {
+            cursor: pointer;
+        }
+
+        .preview-panel {
+            width: 400px;
+        min-width: 400px;
+        background: var(--theme-surface);
+        border-radius: 8px;
+        border: 1px solid var(--border-dim);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .preview-header {
+        height: 64px;
+        padding: 0 1.25rem;
+        border-bottom: 1px solid var(--border-dim);
+            display: flex;
+            align-items: center;
+        gap: 0.75rem;
+        background: var(--theme-surface);
+        width: 100%;
+        }
+
+        .preview-content {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .resizer {
+            width: 3px;
+            margin: 0;
+            cursor: col-resize;
+            background: transparent;
+            position: relative;
+            z-index: 10;
+            flex: 0 0 auto;
+        }
+
+        .resizer:hover::after,
+        .resizer.dragging::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-bright);
+            transform: translateX(-50%);
+        }
+
+        /* Tasks View Styles */
+        #tasks-view {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+            height: 100%;
+    }
+
+    .tasks-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-dim);
+            display: flex;
+            gap: 1rem;
+        background: var(--theme-surface);
+        }
+
+    .search-box {
+            flex: 1;
+            position: relative;
+        }
+
+    .search-box i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+        color: var(--text-muted);
+        pointer-events: none;
+        }
+
+    .search-box input {
+            width: 100%;
+            height: 36px;
+        background: var(--theme-surface-2);
+        border: 1px solid var(--border-dim);
+        border-radius: 8px;
+            padding: 0 1rem 0 2.5rem;
+        color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+    .search-box input:focus {
+        border-color: var(--theme-accent);
+        outline: none;
+        }
+
+        .status-filter select {
+            height: 36px;
+            background: var(--theme-surface-2);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            padding: 0 2.5rem 0 1rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            min-width: 120px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236B7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 10.5l-4-4h8l-4 4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+        }
+
+    .status-filter select:focus {
+        border-color: var(--theme-accent);
+        outline: none;
+    }
+
+        .tasks-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--theme-surface-2);
+            min-height: 0;
+    }
+
+    .tasks-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        min-height: 0;
+        padding-bottom: 1rem;
+    }
+
+    .task-item {
+        padding: 1rem;
+        background: var(--theme-surface);
+        border: 1px solid var(--border-dim);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .task-item:hover {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    .task-item:last-child {
+        margin-bottom: 0.5rem;
+    }
+
+    .task-header {
+        display: flex;
+        justify-content: space-between;
+            align-items: center;
+        margin-bottom: 0.5rem;
+        gap: 1rem;
+    }
+
+    .task-module {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+        flex: 1;
+    }
+
+    .task-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        flex-shrink: 0;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+
+    .status-pending {
+        background: rgba(156, 163, 175, 0.1);
+        color: #9ca3af;
+    }
+
+    .status-running {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+
+    .status-completed {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .status-failed {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        }
+
+        .task-name {
+        font-size: 0.9375rem;
+        color: var(--text-primary);
+    }
+
+    .btn {
+            height: 36px;
+        padding: 0 1rem;
+        display: inline-flex;
+            align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        min-width: 80px;
+        width: auto;
+    }
+
+    .btn i {
+        font-size: 1.125rem;
+    }
+
+    .btn-outline, .btn-primary {
+        min-width: 80px;
+        width: auto;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-dim);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    .btn-primary {
+        background: var(--theme-accent);
+        border: none;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--theme-accent-dark);
+    }
+
+    .btn-group {
+        display: flex;
+        gap: 0.5rem;
+            width: 100%;
+    }
+
+    .btn-group .btn {
+            flex: 1;
+        border-radius: 8px;
+        justify-content: center;
+    }
+
+    .btn-group .btn:hover {
+        background: transparent;
+        border-color: var(--border-dim);
+    }
+
+    .btn-group .btn.active {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    .btn-group .btn.active:hover {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    @media (max-width: 768px) {
+        .preview-panel {
+            display: none;
+        }
+
+        .resizer {
+            display: none;
+        }
+        }
+
+        /* No Results Message */
+        .no-results {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .no-results .btn {
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-muted {
+            color: var(--text-muted);
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .mt-2 {
+            margin-top: 0.5rem;
+        }
+
+        #yaml-view {
+        flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: auto;
+        height: 100%;
+        }
+
+        /* Add modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--theme-surface);
+            padding: 2rem;
+            border-radius: 8px;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            height: 36px;
+            padding: 0 1rem;
+            background: var(--theme-surface-2);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .form-group input:focus {
+            border-color: var(--theme-accent);
+            outline: none;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+{% from "components/navbar.html" import navbar %}
+{% from "components/yaml_viewer.html" import yaml_viewer %}
+{% from "components/vis_viewer.html" import vis_viewer %}
+{{ navbar() }}
+
+    <div class="main-content">
+        <div class="editor-panel">
+            <div class="editor-toolbar">
+            <div class="toolbar-left">
+                <div class="execution-info">
+                <span class="execution-time">
+                    <i class="bi bi-clock"></i>
+                        <span class="timestamp">{{ start_time }}</span>
+                </span>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <a href="/workflow/{{ workflow_name }}/execution/{{ scan_id }}/results" class="btn btn-outline" target="_blank">
+                    <i class="bi bi-list-check"></i>
+                    Results
+                </a>
+                <button class="btn btn-outline" onclick="window.location.href='/workflow/{{ workflow_name }}/edit'">
+                    <i class="bi bi-pencil"></i>
+                    Edit
+                </button>
+            </div>
+            </div>
+            <div class="editor-container">
+                {{ vis_viewer(id='workflow-visualization', is_editable=false) }}
+            </div>
+        </div>
+        <div class="resizer" id="dragMe"></div>
+        <div class="preview-panel">
+            <div class="preview-header">
+                <div class="btn-group">
+                    <button class="btn btn-outline active" onclick="switchView('tasks')">
+                        <i class="bi bi-list-task"></i>Tasks
+                    </button>
+                    <button class="btn btn-outline" onclick="switchView('yaml')">
+                        <i class="bi bi-code-square"></i>YAML
+                    </button>
+                </div>
+            </div>
+            <div class="preview-content">
+                <div id="tasks-view">
+                <div class="tasks-header">
+                    <div class="search-box">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="taskFilter" placeholder="Filter tasks..." onkeyup="filterTasks()">
+                        </div>
+                        <div class="status-filter">
+                            <select id="statusFilter" onchange="filterTasks()">
+                            <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="running">Running</option>
+                            <option value="completed">Completed</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                        </div>
+                    </div>
+                <div class="tasks-container">
+                    <div class="tasks-list" id="tasksList">
+                        {% for task in tasks %}
+                        <div class="task-item" data-status="{{ task.status }}" onclick="window.open('/workflow/${encodeURIComponent('{{ workflow_name }}')}/execution/${encodeURIComponent('{{ scan_id }}')}/results?task=${encodeURIComponent(task.name)}', '_blank')">
+                            <div class="task-header">
+                                <div class="task-module">{{ task.name.split(':')[0] }}</div>
+                                                <div class="task-status">
+                                    <span class="status-badge status-{{ task.status }}">
+                                        {{ task.status.upper() }}
+                                    </span>
+                                                </div>
+                                            </div>
+                            <div class="task-name">{{ task.name.split(':')[1].split('_')|map('capitalize')|join(' ') }}</div>
+                                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                </div>
+            <div id="yaml-view" style="display: none;">
+                    {{ yaml_viewer(yaml_content if yaml_content else "", id="yaml-content") }}
+        </div>
+    </div>
+    </div>
+</div>
+
+<!-- Add modal HTML -->
+<div id="workflowArgsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Workflow Arguments</h3>
+        </div>
+        <div class="modal-body">
+            <form id="workflowArgsForm">
+                <!-- Arguments will be dynamically added here -->
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeArgsModal()">
+                Cancel
+            </button>
+            <button class="btn btn-primary" onclick="submitWorkflowArgs()">
+                Run
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script>
+    // Format workflow name
+    function formatWorkflowName(name) {
+        return name.split('_')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+            }
+
+    // Format timestamp
+    function formatTimestamp(timestamp) {
+        const year = timestamp.substring(0, 4);
+        const month = timestamp.substring(4, 6);
+        const day = timestamp.substring(6, 8);
+        const hour = timestamp.substring(9, 11);
+        const minute = timestamp.substring(11, 13);
+        const second = timestamp.substring(13, 15);
+        
+        const date = new Date(year, month - 1, day, hour, minute, second);
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000); // difference in seconds
+
+        if (diff < 60) {
+            return 'just now';
+        } else if (diff < 3600) {
+            const minutes = Math.floor(diff / 60);
+            return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+        } else if (diff < 86400) {
+            const hours = Math.floor(diff / 3600);
+            return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        } else if (diff < 604800) {
+            const days = Math.floor(diff / 86400);
+            return `${days} day${days > 1 ? 's' : ''} ago`;
+        } else if (diff < 2592000) {
+            const weeks = Math.floor(diff / 604800);
+            return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+        } else {
+            const months = Math.floor(diff / 2592000);
+            return `${months} month${months > 1 ? 's' : ''} ago`;
+        }
+            }
+
+    // Filter tasks
+    function filterTasks() {
+        const filter = (document.getElementById('taskFilter')?.value || '').toLowerCase().trim();
+        const statusFilter = document.getElementById('statusFilter')?.value || 'all';
+        const tasks = document.querySelectorAll('.task-item');
+        let visibleCount = 0;
+
+        tasks.forEach(task => {
+            const taskName = task.querySelector('.task-name')?.textContent.toLowerCase().trim() || '';
+            const taskModule = task.querySelector('.task-module')?.textContent.toLowerCase().trim() || '';
+            const taskStatus = task.dataset.status || '';
+
+            // More flexible text matching
+            const searchTerms = filter.split(/\s+/);
+            const matchesText = filter === '' || searchTerms.every(term => 
+                taskName.includes(term) || taskModule.includes(term)
+            );
+            
+            const matchesStatus = statusFilter === 'all' || taskStatus === statusFilter;
+            const shouldShow = matchesText && matchesStatus;
+
+            task.style.display = shouldShow ? 'block' : 'none';
+            if (shouldShow) visibleCount++;
+        });
+
+        // Update UI to show filter results
+        const tasksList = document.getElementById('tasksList');
+        if (tasksList) {
+            if (visibleCount === 0 && (filter || statusFilter !== 'all')) {
+                // Show "no results" message if there are no matches
+                const noResults = document.createElement('div');
+                noResults.className = 'no-results';
+                noResults.innerHTML = `
+                    <div class="text-center p-4 text-muted">
+                        No tasks match the current filters
+                        <br>
+                        <button class="btn btn-outline mt-2" onclick="clearFilters()">
+                            Clear Filters
+                        </button>
+                    </div>
+                `;
+                tasksList.appendChild(noResults);
+            } else {
+                // Remove any existing "no results" message
+                const existingNoResults = tasksList.querySelector('.no-results');
+                if (existingNoResults) {
+                    existingNoResults.remove();
+                }
+            }
+        }
+    }
+
+    // Clear all filters
+    function clearFilters() {
+        const taskFilter = document.getElementById('taskFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        
+        if (taskFilter) taskFilter.value = '';
+        if (statusFilter) statusFilter.value = 'all';
+        
+        filterTasks();
+    }
+
+    // Switch view between tasks and YAML
+    function switchView(view) {
+        const tasksView = document.getElementById('tasks-view');
+        const yamlView = document.getElementById('yaml-view');
+        const tasksBtn = document.querySelector('button[onclick="switchView(\'tasks\')"]');
+        const yamlBtn = document.querySelector('button[onclick="switchView(\'yaml\')"]');
+
+        if (view === 'tasks') {
+            tasksView.style.display = 'block';
+            yamlView.style.display = 'none';
+            tasksBtn.classList.add('active');
+            yamlBtn.classList.remove('active');
+        } else {
+            tasksView.style.display = 'none';
+            yamlView.style.display = 'block';
+            tasksBtn.classList.remove('active');
+            yamlBtn.classList.add('active');
+        }
+    }
+
+    // Add these functions for handling the modal and workflow arguments
+    function showArgsModal(args) {
+        const modal = document.getElementById('workflowArgsModal');
+        const form = document.getElementById('workflowArgsForm');
+        
+        // Clear existing form
+        form.innerHTML = '';
+        
+        // Add input fields for each argument
+        args.forEach(arg => {
+            const [name, defaultValue] = Object.entries(arg)[0];
+            const formGroup = document.createElement('div');
+            formGroup.className = 'form-group';
+            formGroup.innerHTML = `
+                <label for="${name}">${name}</label>
+                <input type="text" id="${name}" name="${name}" value="${defaultValue || ''}" required>
+            `;
+            form.appendChild(formGroup);
+        });
+        
+        modal.style.display = 'block';
+    }
+
+    function closeArgsModal() {
+        const modal = document.getElementById('workflowArgsModal');
+        modal.style.display = 'none';
+    }
+
+    function submitWorkflowArgs() {
+        const form = document.getElementById('workflowArgsForm');
+        const args = {};
+        
+        // Collect all form inputs
+        const inputs = form.querySelectorAll('input');
+        inputs.forEach(input => {
+            args[input.name] = input.value;
+        });
+        
+        // Run the workflow with the collected arguments
+        runWorkflowWithArgs(args);
+        closeArgsModal();
+    }
+
+    // Update the runWorkflow function to handle arguments
+    function runWorkflow() {
+        fetch(`/api/workflow/${encodeURIComponent("{{ workflow_name }}")}`, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.config && data.config.workflow && data.config.workflow.arguments) {
+                showArgsModal(data.config.workflow.arguments);
+            } else {
+                runWorkflowWithArgs({});
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to get workflow configuration: ' + error.message);
+        });
+    }
+
+    function runWorkflowWithArgs(args) {
+        fetch(`/api/workflow/${encodeURIComponent("{{ workflow_name }}")}/run`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ args })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to start workflow');
+            return response.json();
+        })
+        .then(data => {
+            window.location.href = `/workflow/${encodeURIComponent("{{ workflow_name }}")}/execution/${data.scan_id}/results`;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to start workflow: ' + error.message);
+        });
+    }
+
+    // Initialize everything when the DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Format timestamps
+        document.querySelectorAll('.timestamp').forEach(function(element) {
+            const timestamp = element.textContent.trim();
+            element.textContent = formatTimestamp(timestamp);
+        });
+
+        // Initialize resizer functionality
+            const resizer = document.querySelector('.resizer');
+            const rightPanel = document.querySelector('.preview-panel');
+            let isResizing = false;
+            let startX;
+        let startRightWidth;
+
+        resizer.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                startX = e.clientX;
+            startRightWidth = rightPanel.offsetWidth;
+
+            document.addEventListener('mousemove', handleResize);
+                document.addEventListener('mouseup', stopResize);
+                resizer.classList.add('dragging');
+        });
+
+        function handleResize(e) {
+                if (!isResizing) return;
+
+            const diff = startX - e.clientX;
+            const newRightWidth = startRightWidth + diff;
+                const containerWidth = document.querySelector('.main-content').offsetWidth;
+            const leftPanelMinWidth = 400;
+
+            // Ensure minimum widths for both panels
+            if (newRightWidth >= 300 && newRightWidth <= (containerWidth - leftPanelMinWidth - 8)) {
+                rightPanel.style.width = `${newRightWidth}px`;
+                rightPanel.style.minWidth = `${newRightWidth}px`;
+                if (window.workflowNetwork) {
+                    window.workflowNetwork.setSize('100%', '100%');
+                    window.workflowNetwork.redraw();
+                }
+                }
+            }
+
+            function stopResize() {
+                isResizing = false;
+            document.removeEventListener('mousemove', handleResize);
+                document.removeEventListener('mouseup', stopResize);
+                resizer.classList.remove('dragging');
+        }
+
+        // Load workflow data
+        async function loadWorkflowData() {
+            try {
+                const [workflowResponse, taskDetailsResponse] = await Promise.all([
+                    fetch(`/api/workflow/${encodeURIComponent('{{ workflow_name }}')}`, {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    }),
+                    fetch(`/api/workflow/${encodeURIComponent('{{ workflow_name }}')}/execution/${encodeURIComponent('{{ scan_id }}')}/details`)
+                ]);
+                
+                if (!workflowResponse.ok || !taskDetailsResponse.ok) 
+                    throw new Error('Failed to load workflow or task details');
+                
+                const [workflowData, taskDetails] = await Promise.all([
+                    workflowResponse.json(),
+                    taskDetailsResponse.json()
+                ]);
+
+                // Store workflow data globally for access by visualization
+                window.workflowData = workflowData;
+
+                // Update tasks list
+                const tasksList = document.getElementById('tasksList');
+                if (tasksList) {
+                    tasksList.innerHTML = taskDetails.tasks.map(task => {
+                        const [moduleName, taskName] = task.name.split(':');
+                        const status = task.status === 'done' ? 'completed' : task.status;
+                        const formattedTaskName = taskName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                        return `
+                            <div class="task-item" data-status="${status}" onclick="window.open('/workflow/${encodeURIComponent('{{ workflow_name }}')}/execution/${encodeURIComponent('{{ scan_id }}')}/results?task=${encodeURIComponent(task.name)}', '_blank')">
+                                <div class="task-header">
+                                    <div class="task-module">${moduleName}</div>
+                                    <div class="task-status">
+                                        <span class="status-badge status-${status}">
+                                            ${status.toUpperCase()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="task-name">${formattedTaskName}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Reapply current filter after updating the list
+                filterTasks();
+
+            // Create a map of task statuses
+                const taskStatuses = new Map(taskDetails.tasks.map(task => [task.name, task.status === 'done' ? 'completed' : task.status]));
+                
+                // Process workflow data and update visualization
+                if (window.workflowNodes && window.workflowEdges) {
+                    window.workflowNodes.clear();
+                    window.workflowEdges.clear();
+
+                    const moduleColorMap = new Map();
+                    let colorIndex = 0;
+                    const colorPalette = [
+                        { background: '#1a1f2b', border: 'rgba(59, 130, 246, 0.5)' },
+                        { background: '#1a1a24', border: 'rgba(168, 85, 247, 0.5)' },
+                        { background: '#1a1f1a', border: 'rgba(16, 185, 129, 0.5)' },
+                        { background: '#1f1c1a', border: 'rgba(249, 115, 22, 0.5)' },
+                        { background: '#1f1a1a', border: 'rgba(239, 68, 68, 0.5)' },
+                        { background: '#1a1f1f', border: 'rgba(6, 182, 212, 0.5)' },
+                        { background: '#1f1f1a', border: 'rgba(234, 179, 8, 0.5)' },
+                        { background: '#1f1a1f', border: 'rgba(236, 72, 153, 0.5)' }
+                    ];
+
+                    if (workflowData.config.workflow && workflowData.config.workflow.modules) {
+                        for (const module of workflowData.config.workflow.modules) {
+                            if (!module.tasks) continue;
+
+                            // Get module colors
+                            if (!moduleColorMap.has(module.name)) {
+                                moduleColorMap.set(module.name, colorPalette[colorIndex % colorPalette.length]);
+                                colorIndex++;
+                            }
+                            const moduleColors = moduleColorMap.get(module.name);
+
+                            for (const taskDict of module.tasks) {
+                                const taskName = Object.keys(taskDict)[0];
+                                const taskConfig = taskDict[taskName];
+                                const taskId = `${module.name}:${taskName}`;
+                                
+                                // Add node
+                                window.workflowNodes.add({
+                id: taskId,
+                                    label: taskName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+                color: {
+                                        background: moduleColors.background,
+                                        border: moduleColors.border
+                                    },
+                                    cursor: 'pointer'
+                                });
+
+                                // Add edges
+                                if (taskConfig.requires) {
+                                    const requires = Array.isArray(taskConfig.requires) ? taskConfig.requires : [taskConfig.requires];
+                                    requires.forEach(dep => {
+                                        const fromId = dep.includes(':') ? dep : `${module.name}:${dep}`;
+                                        const fromStatus = taskStatuses.get(fromId);
+                                        let edgeColor, edgeHighlight, edgeHover;
+                                        
+                                        if (fromStatus === 'completed') {
+                                            edgeColor = 'rgba(40, 167, 69, 0.6)';  // Green with opacity
+                                            edgeHighlight = 'rgba(40, 167, 69, 0.8)';
+                                            edgeHover = 'rgba(40, 167, 69, 0.8)';
+                                        } else if (fromStatus === 'failed') {
+                                            edgeColor = 'rgba(239, 68, 68, 0.6)';  // Red with opacity
+                                            edgeHighlight = 'rgba(239, 68, 68, 0.8)';
+                                            edgeHover = 'rgba(239, 68, 68, 0.8)';
+                                        } else {
+                                            edgeColor = 'rgba(255, 255, 255, 0.15)';  // Default light color
+                                            edgeHighlight = 'rgba(255, 255, 255, 0.25)';
+                                            edgeHover = 'rgba(255, 255, 255, 0.25)';
+                                        }
+                                        
+                                        window.workflowEdges.add({
+                                            from: fromId,
+                                            to: taskId,
+                                            color: {
+                                                color: edgeColor,
+                                                highlight: edgeHighlight,
+                                                hover: edgeHover
+                                            }
+                                        });
+                });
+            }
+                            }
+                        }
+                    }
+
+                    // Fit the network
+                    if (window.workflowNetwork) {
+                        window.workflowNetwork.fit();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading workflow data:', error);
+            }
+        }
+
+        // Load initial data
+        loadWorkflowData();
+
+        // Set up periodic updates
+        setInterval(loadWorkflowData, 5000);
+
+        // Add click handler for network nodes
+        if (window.workflowNetwork) {
+            window.workflowNetwork.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const taskId = params.nodes[0];
+                    window.open(`/workflow/${encodeURIComponent('{{ workflow_name }}')}/execution/${encodeURIComponent('{{ scan_id }}')}/results?task=${encodeURIComponent(taskId)}`, '_blank');
+                }
+            });
+        }
+    });
+    </script>
+{% endblock %} 

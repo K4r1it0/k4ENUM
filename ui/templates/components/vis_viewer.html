@@ -1,0 +1,359 @@
+{% macro vis_viewer(id='workflow-visualization', is_editable=false) %}
+<div class="vis-viewer">
+    <div id="{{ id }}" class="vis-container"></div>
+    <div class="zoom-controls">
+        <button class="btn btn-outline" onclick="visViewerControls.zoomIn('{{ id }}')" title="Zoom In">
+            <i class="bi bi-plus-lg"></i>
+        </button>
+        <button class="btn btn-outline" onclick="visViewerControls.zoomFit('{{ id }}')" title="Fit to Screen">
+            <i class="bi bi-arrows-fullscreen"></i>
+        </button>
+        <button class="btn btn-outline" onclick="visViewerControls.zoomOut('{{ id }}')" title="Zoom Out">
+            <i class="bi bi-dash-lg"></i>
+        </button>
+    </div>
+</div>
+
+<style>
+.vis-viewer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.vis-container {
+    width: 100%;
+    height: 100%;
+    background: var(--theme-surface-2);
+}
+
+.zoom-controls {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 100;
+}
+
+.btn {
+    height: 36px;
+    padding: 0 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn i {
+    font-size: 1.125rem;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border-dim);
+    color: var(--text-primary);
+}
+
+.btn-outline:hover {
+    background: var(--theme-surface-2);
+    border-color: var(--border-bright);
+}
+
+/* Tooltip styles */
+.vis-tooltip {
+    position: absolute;
+    padding: 0.5rem 0.75rem;
+    background: var(--theme-surface);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    max-width: 300px;
+    white-space: normal;
+}
+
+.vis-tooltip .task-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.vis-tooltip .task-module {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.vis-tooltip .task-name {
+    font-weight: 500;
+}
+
+.vis-tooltip .task-status {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+</style>
+
+<script>
+// Create a global object for vis viewer controls and configuration
+window.visViewerControls = window.visViewerControls || {
+    networks: {},
+    defaultOptions: {
+        nodes: {
+            shape: 'box',
+            margin: 10,
+            font: {
+                size: 25,
+                face: 'Arial',
+                color: '#fff'
+            },
+            borderWidth: 2,
+            fixed: {
+                x: false,
+                y: false
+            },
+            color: {
+                background: '#1a1f2b',
+                border: 'rgba(59, 130, 246, 0.5)',
+                hover: {
+                    background: '#1a1f2b',
+                    border: 'rgba(59, 130, 246, 0.5)'
+                },
+                highlight: {
+                    background: '#1a1f2b',
+                    border: 'rgba(59, 130, 246, 0.5)'
+                }
+            }
+        },
+        edges: {
+            width: 7,
+            arrows: {
+                to: {
+                    enabled: false
+                }
+            },
+            smooth: {
+                enabled: false,
+                type: 'continuous'
+            },
+            dashes: false,
+            selectionWidth: 2,
+            hoverWidth: 2,
+            color: {
+                color: 'rgba(255, 255, 255, 0.15)',
+                hover: 'rgba(255, 255, 255, 0.15)',
+                highlight: 'rgba(255, 255, 255, 0.15)'
+            }
+        },
+        layout: {
+            hierarchical: {
+                nodeSpacing:300,
+                enabled: true,
+                direction: 'LR',
+                sortMethod: 'directed',
+                levelSeparation: 250,
+                blockShifting: true,
+                edgeMinimization: true,
+                parentCentralization: true,
+                shakeTowards: 'roots'
+            }
+        },
+        physics: {
+            enabled: false,
+            hierarchicalRepulsion: {
+                centralGravity: 0.0,
+                springLength: 200,
+                springConstant: 0.01,
+                nodeDistance: 200,
+                damping: 0.09
+            },
+            solver: 'hierarchicalRepulsion'
+        },
+        interaction: {
+            dragNodes: true,
+            dragView: true,
+            zoomView: true,
+            hover: false,
+            hoverConnectedEdges: false,
+            selectConnectedEdges: false,
+            tooltipDelay: 0
+        }
+    },
+    
+    zoomIn: function(id) {
+        const network = this.networks[id];
+        if (network) {
+            const scale = network.getScale();
+            network.moveTo({ scale: scale * 1.2 });
+        }
+    },
+    
+    zoomOut: function(id) {
+        const network = this.networks[id];
+        if (network) {
+            const scale = network.getScale();
+            network.moveTo({ scale: scale / 1.2 });
+        }
+    },
+    
+    zoomFit: function(id) {
+        const network = this.networks[id];
+        if (network) {
+            network.fit({ animation: false });
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const containerId = '{{ id }}';
+    
+    // Create a new dataset for this instance
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+
+    // Create network using the global options
+    const container = document.getElementById(containerId);
+    if (container) {
+        const network = new vis.Network(container, {
+            nodes: nodes,
+            edges: edges
+        }, window.visViewerControls.defaultOptions);
+        
+        // Store network instance in the global controls object
+        window.visViewerControls.networks[containerId] = network;
+        
+        // Store datasets for external access
+        window.workflowNodes = nodes;
+        window.workflowEdges = edges;
+        window.workflowNetwork = network;
+
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'vis-tooltip';
+        tooltip.style.display = 'none';
+        container.appendChild(tooltip);
+
+        // Handle hover events
+        network.on('hoverNode', function(params) {
+            const node = nodes.get(params.node);
+            const [moduleName, taskName] = node.id.split(':');
+            const nodePosition = network.getPositions([params.node])[params.node];
+            const canvasPosition = network.canvasToDOM(nodePosition);
+
+            // Get workflow data to check for arguments
+            const workflowData = window.workflowData;
+            let argsHtml = '';
+            if (workflowData && workflowData.config && workflowData.config.workflow && workflowData.config.workflow.arguments) {
+                const args = workflowData.config.workflow.arguments;
+                if (args.length > 0) {
+                    argsHtml = `
+                        <div class="task-arguments">
+                            <div class="args-title">Required Arguments:</div>
+                            ${args.map(arg => {
+                                const [name, defaultValue] = Object.entries(arg)[0];
+                                return `<div class="arg-item">${name}: ${defaultValue || '(required)'}</div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+            }
+
+            tooltip.innerHTML = `
+                <div class="task-info">
+                    <div class="task-module">${moduleName}</div>
+                    <div class="task-name">${node.label}</div>
+                    <div class="task-status">ID: ${node.id}</div>
+                    ${argsHtml}
+                </div>
+            `;
+
+            // Position tooltip
+            const rect = container.getBoundingClientRect();
+            tooltip.style.left = (canvasPosition.x + 10) + 'px';
+            tooltip.style.top = (canvasPosition.y - tooltip.offsetHeight - 10) + 'px';
+            tooltip.style.display = 'block';
+        });
+
+        network.on('blurNode', function() {
+            tooltip.style.display = 'none';
+        });
+
+        // Handle hover events for edges
+        network.on('hoverEdge', function(params) {
+            const edge = edges.get(params.edge);
+            const fromNode = nodes.get(edge.from);
+            const toNode = nodes.get(edge.to);
+            const edgePosition = network.getPositions([edge.from, edge.to]);
+            const midPoint = {
+                x: (edgePosition[edge.from].x + edgePosition[edge.to].x) / 2,
+                y: (edgePosition[edge.from].y + edgePosition[edge.to].y) / 2
+            };
+            const canvasPosition = network.canvasToDOM(midPoint);
+
+            tooltip.innerHTML = `
+                <div class="task-info">
+                    <div class="task-name">Dependency</div>
+                    <div class="task-status">From: ${fromNode.label}</div>
+                    <div class="task-status">To: ${toNode.label}</div>
+                </div>
+            `;
+
+            // Position tooltip
+            tooltip.style.left = (canvasPosition.x + 10) + 'px';
+            tooltip.style.top = (canvasPosition.y - tooltip.offsetHeight - 10) + 'px';
+            tooltip.style.display = 'block';
+        });
+
+        network.on('blurEdge', function() {
+            tooltip.style.display = 'none';
+        });
+
+        // Handle zoom events to reposition tooltip
+        network.on('zoom', function() {
+            tooltip.style.display = 'none';
+        });
+
+        // Handle drag events to reposition tooltip
+        network.on('dragStart', function() {
+            tooltip.style.display = 'none';
+        });
+
+        // Add tooltip styles
+        const style = document.createElement('style');
+        style.textContent = `
+            .task-arguments {
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+                border-top: 1px solid var(--border-dim);
+            }
+            
+            .args-title {
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: var(--text-secondary);
+                margin-bottom: 0.25rem;
+            }
+            
+            .arg-item {
+                font-size: 0.75rem;
+                color: var(--text-primary);
+                margin-bottom: 0.25rem;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+});
+</script>
+{% endmacro %} 

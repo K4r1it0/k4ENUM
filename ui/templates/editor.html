@@ -1,0 +1,663 @@
+{% extends "base.html" %}
+
+{% block title %}k4ENUM - Workflow Editor{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+
+<style>
+    .main-content {
+        position: fixed;
+        top: calc(50px + 8px);
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        display: flex;
+        gap: 3px;
+        overflow: hidden;
+        background: var(--theme-background);
+    }
+
+    .editor-panel {
+        flex: 1;
+        min-width: 400px;
+        background: var(--theme-surface);
+        border-radius: 8px;
+        border: 1px solid var(--border-dim);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .editor-toolbar {
+        height: 64px;
+        padding: 0 1.25rem;
+        border-bottom: 1px solid var(--border-dim);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--theme-surface);
+    }
+
+    .toolbar-left, .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .editor-container {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background: var(--theme-surface-2);
+    }
+
+    #workflow-editor {
+        width: 100%;
+        height: 100%;
+    }
+
+    .preview-panel {
+        width: 400px;
+        min-width: 400px;
+        background: var(--theme-surface);
+        border-radius: 8px;
+        border: 1px solid var(--border-dim);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .preview-header {
+        height: 64px;
+        padding: 0 1.25rem;
+        border-bottom: 1px solid var(--border-dim);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--theme-surface);
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .preview-header i {
+        color: var(--theme-accent);
+        font-size: 1.25rem;
+    }
+
+    .preview-content {
+        flex: 1;
+        overflow: auto;
+        background: var(--theme-surface-2);
+    }
+
+    .preview-content pre {
+        margin: 0;
+        padding: 1.25rem;
+        height: 100%;
+        background: var(--theme-surface-2);
+    }
+
+    .preview-content code {
+        font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        background: var(--theme-surface-2) !important;
+    }
+
+    .preview-content .hljs {
+        background: var(--theme-surface-2) !important;
+        padding: 0;
+    }
+
+    .resizer {
+        width: 3px;
+        margin: 0;
+        cursor: col-resize;
+        background: transparent;
+        position: relative;
+        z-index: 10;
+        flex: 0 0 auto;
+    }
+
+    .resizer:hover::after,
+    .resizer.dragging::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-bright);
+        transform: translateX(-50%);
+    }
+
+    .zoom-controls {
+        position: absolute;
+        bottom: 1rem;
+        right: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        z-index: 100;
+    }
+
+    .btn {
+        height: 36px;
+        padding: 0 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .btn i {
+        font-size: 1.125rem;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-dim);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    .btn-outline:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: var(--theme-accent);
+        border: none;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--theme-accent-dark);
+    }
+
+    .btn-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .preview-panel {
+            display: none;
+        }
+
+        .resizer {
+            display: none;
+        }
+    }
+
+    .modal-content {
+        background-color: var(--theme-surface);
+        border: 1px solid var(--border-dim);
+        border-radius: 12px;
+        color: var(--text-primary);
+    }
+
+    .modal-header {
+        background: var(--theme-surface);
+        border-bottom: 1px solid var(--border-dim);
+        padding: 1rem 1.25rem;
+    }
+
+    .modal-header .btn-close {
+        filter: invert(1);
+    }
+
+    .modal-body {
+        background: var(--theme-surface-2);
+        padding: 1.25rem;
+    }
+
+    .modal-footer {
+        background: var(--theme-surface);
+        border-top: 1px solid var(--border-dim);
+        padding: 1rem 1.25rem;
+    }
+
+    .form-label {
+        color: var(--text-primary);
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control {
+        background: var(--theme-surface);
+        border: 1px solid var(--border-dim);
+        border-radius: 8px;
+        color: var(--text-primary);
+        padding: 0.5rem 0.75rem;
+    }
+
+    .form-control:focus {
+        background: var(--theme-surface);
+        border-color: var(--theme-accent);
+        box-shadow: 0 0 0 2px rgba(var(--theme-accent-rgb), 0.25);
+        color: var(--text-primary);
+    }
+
+    .form-control::placeholder {
+        color: var(--text-secondary);
+    }
+
+    #moduleArgumentsList {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .argument-row {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .argument-row .form-control {
+        flex: 1;
+    }
+
+    .argument-row .btn-remove {
+        padding: 0.5rem;
+        color: var(--text-error);
+        background: transparent;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .argument-row .btn-remove:hover {
+        color: var(--text-error-bright);
+    }
+
+    .workflow-name {
+        margin-right: 1.5rem;
+        padding-right: 1.5rem;
+        border-right: 1px solid var(--border-dim);
+    }
+
+    .workflow-name span {
+        font-size: 1.125rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    /* Modal Styles */
+    .modal-content {
+        background-color: var(--theme-surface);
+        border: 1px solid var(--border-dim);
+    }
+
+    .modal-header {
+        border-bottom: 1px solid var(--border-dim);
+        padding: 1rem 1.25rem;
+    }
+
+    .modal-footer {
+        border-top: 1px solid var(--border-dim);
+        padding: 1rem 1.25rem;
+    }
+
+    .modal-title {
+        color: var(--text-primary);
+        font-size: 1.125rem;
+        font-weight: 500;
+    }
+
+    .modal-body {
+        padding: 1.25rem;
+    }
+
+    .form-label {
+        color: var(--text-primary);
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control {
+        background: var(--theme-surface-2);
+        border: 1px solid var(--border-dim);
+        color: var(--text-primary);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+    }
+
+    .form-control:focus {
+        background: var(--theme-surface-2);
+        border-color: var(--theme-accent);
+        color: var(--text-primary);
+        box-shadow: none;
+    }
+
+    .form-control::placeholder {
+        color: var(--text-secondary);
+    }
+
+    textarea.form-control {
+        min-height: 100px;
+    }
+
+    .btn {
+        height: 36px;
+        padding: 0 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .btn-sm {
+        height: 32px;
+        padding: 0 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .btn i {
+        font-size: 1.125rem;
+    }
+
+    .btn-primary {
+        background: var(--theme-accent);
+        border: none;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--theme-accent-dark);
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-dim);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    /* Arguments List Styles */
+    .argument-row {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .argument-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .argument-row .form-control {
+        flex: 1;
+    }
+
+    .argument-row .btn-remove {
+        padding: 0.5rem;
+        color: var(--text-error);
+        background: transparent;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .argument-row .btn-remove:hover {
+        color: var(--text-error-bright);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% from "components/navbar.html" import navbar %}
+{% from "components/yaml_viewer.html" import yaml_viewer %}
+{% from "components/vis_viewer.html" import vis_viewer %}
+{{ navbar() }}
+
+<div class="main-content">
+    <div class="editor-panel">
+        <div class="editor-toolbar">
+            <div class="toolbar-left">
+                <div class="workflow-name">
+                    <span id="workflow-title">{{ workflow_name.split('_')|map('capitalize')|join(' ') if workflow_name else "New Workflow" }}</span>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-outline" onclick="addNode()">
+                        <i class="bi bi-box"></i> Task
+                    </button>
+                    <button class="btn btn-outline" data-action="link" disabled>
+                        <i class="bi bi-arrow-right"></i> Link
+                    </button>
+                    <button class="btn btn-outline" onclick="deleteSelected()" disabled>
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-outline save" onclick="saveWorkflow()">
+                    <i class="bi bi-save"></i>Save
+                </button>
+                <button class="btn btn-primary run" onclick="runWorkflow()">
+                    <i class="bi bi-play-fill"></i>Run
+                </button>
+            </div>
+        </div>
+        <div class="editor-container">
+            {{ vis_viewer('vis-viewer', true) }}
+            <div class="zoom-controls">
+                <button class="btn btn-outline" onclick="zoomIn()" title="Zoom In">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+                <button class="btn btn-outline" onclick="zoomFit()" title="Fit to Screen">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </button>
+                <button class="btn btn-outline" onclick="zoomOut()" title="Zoom Out">
+                    <i class="bi bi-dash-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="resizer" id="dragMe"></div>
+    <div class="preview-panel">
+        <div class="preview-header">
+            <i class="bi bi-code-square"></i> YAML Preview
+        </div>
+        <div class="preview-content">
+            {{ yaml_viewer("") }}
+        </div>
+    </div>
+</div>
+
+<!-- Task Properties Modal -->
+<div class="modal fade" id="taskPropertiesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Task Properties</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="taskModule" class="form-label">Module</label>
+                    <input type="text" class="form-control" id="taskModule">
+                </div>
+                <div class="mb-3">
+                    <label for="taskName" class="form-label">Task Name</label>
+                    <input type="text" class="form-control" id="taskName">
+                </div>
+                <div class="mb-3">
+                    <label for="taskCommand" class="form-label">Command</label>
+                    <input type="text" class="form-control" id="taskCommand">
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label m-0">Arguments</label>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="window.editor.addArgumentField('moduleArgumentsList')">
+                            <i class="bi bi-plus-lg"></i> Add Argument
+                        </button>
+                    </div>
+                    <div id="moduleArgumentsList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveTaskProperties">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Workflow Name Modal -->
+<div class="modal fade" id="newWorkflowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">New Workflow</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="workflowName" class="form-label">Workflow Name</label>
+                    <input type="text" class="form-control" id="workflowName" placeholder="Enter workflow name">
+                </div>
+                <div class="mb-3">
+                    <label for="workflowDescription" class="form-label">Description</label>
+                    <textarea class="form-control" id="workflowDescription" rows="3" placeholder="Enter workflow description"></textarea>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label m-0">Arguments</label>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="window.editor.addArgumentField('workflowArgumentsList')">
+                            <i class="bi bi-plus-lg"></i> Add Argument
+                        </button>
+                    </div>
+                    <div id="workflowArgumentsList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createWorkflow">Create Workflow</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Workflow Name Modal -->
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/workflow-editor.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Initialize syntax highlighting for YAML
+        hljs.configure({
+            ignoreUnescapedHTML: true,
+            languages: ['yaml']
+        });
+        
+        // Initialize syntax highlighting for all code blocks
+        document.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+        });
+
+        // Initialize the WorkflowEditor with the workflow name
+        const workflowName = "{{ workflow_name }}" !== "None" ? "{{ workflow_name }}" : null;
+        window.editor = new WorkflowEditor(workflowName);
+
+        // Set up global functions after initialization
+        window.saveWorkflow = () => window.editor.saveWorkflow();
+        window.addNode = () => window.editor.addNode();
+        window.addEdge = () => window.editor.addEdge();
+        window.deleteSelected = () => window.editor.deleteSelected();
+        window.zoomIn = () => window.editor.zoomIn();
+        window.zoomOut = () => window.editor.zoomOut();
+        window.zoomFit = () => window.editor.zoomFit();
+        window.runWorkflow = () => window.editor.runWorkflow();
+
+        // Load workflow if name is provided
+        if (workflowName) {
+            await window.editor.loadWorkflow(workflowName);
+        }
+
+        // Initialize resizer functionality
+        const resizer = document.querySelector('.resizer');
+        const leftPanel = document.querySelector('.editor-panel');
+        const rightPanel = document.querySelector('.preview-panel');
+        let isResizing = false;
+        let startX;
+        let startLeftWidth;
+        let startRightWidth;
+
+        resizer.addEventListener('mousedown', initResize);
+
+        function initResize(e) {
+            isResizing = true;
+            startX = e.clientX;
+            startLeftWidth = leftPanel.offsetWidth;
+            startRightWidth = rightPanel.offsetWidth;
+
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+            resizer.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        }
+
+        function resize(e) {
+            if (!isResizing) return;
+
+            const diff = e.clientX - startX;
+            const containerWidth = document.querySelector('.main-content').offsetWidth;
+            
+            // Set minimum widths
+            const minWidth = 300;
+            const maxLeftWidth = containerWidth - minWidth;
+            
+            let newLeftWidth = Math.min(Math.max(startLeftWidth + diff, minWidth), maxLeftWidth);
+            let newRightWidth = containerWidth - newLeftWidth - 8; // 8px for resizer
+
+            leftPanel.style.flex = '0 0 auto';
+            leftPanel.style.width = `${newLeftWidth}px`;
+            rightPanel.style.width = `${newRightWidth}px`;
+
+            // Ensure the network redraws properly
+            if (window.editor && window.editor.network) {
+                window.editor.network.setSize('100%', '100%');
+                window.editor.network.redraw();
+            }
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+            resizer.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
+</script>
+{% endblock %} 

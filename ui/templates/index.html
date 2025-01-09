@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+
+{% block title %}k4ENUM - Workflows{% endblock %}
+
+{% block content %}
+{% from "components/navbar.html" import navbar %}
+{{ navbar() }}
+
+<div class="main-content animate-fade-in">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Workflows</h1>
+            <p class="page-subtitle">Create and manage your enumeration workflows</p>
+        </div>
+        <div class="header-actions">
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" id="workflowSearch" placeholder="Search workflows..." oninput="filterWorkflows()">
+            </div>
+            <a href="/workflow/new" class="btn btn-primary btn-glow">
+                <i class="bi bi-plus-lg"></i>
+                Create Workflow
+            </a>
+        </div>
+    </div>
+
+    {% if workflows %}
+    <div class="workflows-grid">
+        {% for workflow in workflows %}
+        <div class="glass-card workflow-card" data-name="{{ workflow.name.lower() }}" onclick="window.location.href='/workflow/{{ workflow.name }}/edit'">
+            <div class="workflow-header">
+                <div class="workflow-icon">
+                    <i class="bi bi-diagram-2"></i>
+                </div>
+                <button class="delete-btn" onclick="event.stopPropagation(); deleteWorkflow('{{ workflow.name }}')" title="Delete workflow">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            <div class="workflow-content">
+                <h3 class="workflow-name">{{ workflow.name }}</h3>
+                {% if workflow.config and workflow.config.workflow and workflow.config.workflow.description %}
+                    <p class="workflow-description">{{ workflow.config.workflow.description }}<br></p>
+                {% endif %}
+            </div>
+            <div class="workflow-footer">
+                <div class="workflow-stats">
+                    {% if workflow.config and workflow.config.workflow and workflow.config.workflow.modules %}
+                        {% set total_tasks = namespace(value=0) %}
+                        {% for module in workflow.config.workflow.modules %}
+                            {% if module.tasks %}
+                                {% for task in module.tasks %}
+                                    {% set total_tasks.value = total_tasks.value + 1 %}
+                                {% endfor %}
+                            {% endif %}
+                        {% endfor %}
+                        <div class="stat">
+                            <i class="bi bi-boxes"></i>
+                            <span>{{ workflow.config.workflow.modules|length }}</span>
+                            <label>modules</label>
+                        </div>
+                        <div class="stat">
+                            <i class="bi bi-check2-square"></i>
+                            <span>{{ total_tasks.value }}</span>
+                            <label>tasks</label>
+                        </div>
+                    {% else %}
+                        <div class="stat">
+                            <i class="bi bi-boxes"></i>
+                            <span>0</span>
+                            <label>modules</label>
+                        </div>
+                        <div class="stat">
+                            <i class="bi bi-check2-square"></i>
+                            <span>0</span>
+                            <label>tasks</label>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass-card empty-state">
+        <div class="empty-content">
+            <div class="empty-icon">
+                <i class="bi bi-diagram-2"></i>
+            </div>
+            <h3>No workflows yet</h3>
+            <p>Create your first workflow to get started with enumeration</p>
+            <a href="/workflow/new" class="btn btn-primary btn-glow mt-4">
+                <i class="bi bi-plus-lg"></i>
+                Create First Workflow
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .main-content {
+        padding-top: 88px;
+    }
+
+    .page-header {
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 2rem;
+    }
+
+    .header-content {
+        flex: 1;
+    }
+
+    .page-title {
+        font-size: 2rem;
+        background: var(--gradient-purple);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .page-subtitle {
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .search-box {
+        position: relative;
+        width: 300px;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .search-box input {
+        width: 100%;
+        height: 42px;
+        background: var(--theme-surface-2);
+        border: 1px solid var(--border-dim);
+        border-radius: 21px;
+        padding: 0 1rem 0 2.5rem;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+        transition: all 0.2s ease;
+    }
+
+    .search-box input:focus {
+        border-color: var(--theme-accent);
+        box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.2);
+        outline: none;
+    }
+
+    .search-box input::placeholder {
+        color: var(--text-muted);
+    }
+
+    .btn-glow {
+        box-shadow: var(--shadow-glow);
+    }
+
+    .btn-glow:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0 30px rgba(109, 40, 217, 0.5);
+    }
+
+    .workflows-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.5rem;
+        padding: 0.5rem;
+    }
+
+    .workflow-card {
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        height: 100%;
+        cursor: pointer;
+    }
+
+    .workflow-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--theme-accent);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .workflow-header {
+        padding: 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .workflow-icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(109, 40, 217, 0.15);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .workflow-icon i {
+        font-size: 1.5rem;
+        color: #8b5cf6;
+    }
+
+    .workflow-content {
+        padding: 0 1.25rem;
+        flex: 1;
+    }
+
+    .workflow-name {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+        color: var(--text-primary);
+        letter-spacing: -0.025em;
+    }
+
+    .workflow-description {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        margin: 0 0 1rem 0;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .workflow-footer {
+        padding: 1.25rem;
+        border-top: 1px solid var(--border-dim);
+        margin-top: auto;
+    }
+
+    .workflow-stats {
+        display: flex;
+        gap: 1.5rem;
+    }
+
+    .stat {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-secondary);
+    }
+
+    .stat i {
+        font-size: 1.125rem;
+        color: #8b5cf6;
+    }
+
+    .stat span {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-right: 0.25rem;
+    }
+
+    .stat label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        opacity: 0;
+        transition: all 0.2s ease;
+        background: var(--gradient-error);
+        border: none;
+        color: white;
+    }
+
+    .workflow-card:hover .btn-icon {
+        opacity: 1;
+    }
+
+    .empty-state {
+        padding: 4rem 2rem;
+        text-align: center;
+    }
+
+    .empty-content {
+        max-width: 320px;
+        margin: 0 auto;
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.5rem;
+        background: rgba(109, 40, 217, 0.1);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .empty-icon i {
+        font-size: 2rem;
+        color: var(--theme-accent);
+    }
+
+    .empty-state h3 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+    }
+
+    .empty-state p {
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
+    .mt-4 {
+        margin-top: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .header-actions {
+            width: 100%;
+            flex-direction: column;
+        }
+
+        .search-box {
+            width: 100%;
+        }
+
+        .workflows-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .delete-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid var(--border-dim);
+        background: var(--theme-surface-2);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .delete-btn:hover {
+        background: var(--theme-surface-3);
+        border-color: var(--border-bright);
+        color: var(--text-primary);
+    }
+
+    .delete-btn i {
+        font-size: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filterWorkflows() {
+        const searchTerm = document.getElementById('workflowSearch').value.toLowerCase();
+        const cards = document.querySelectorAll('.workflow-card');
+        
+        cards.forEach(card => {
+            const name = card.dataset.name;
+            card.style.display = name.includes(searchTerm) ? 'block' : 'none';
+        });
+    }
+
+    async function deleteWorkflow(name) {
+        if (!confirm(`Are you sure you want to delete workflow "${name}"?`)) return;
+        
+        try {
+            const response = await fetch(`/api/workflow/${name}`, {
+                method: 'DELETE'
+            });
+            
+            if (!response.ok) throw new Error('Failed to delete workflow');
+            
+            window.location.reload();
+        } catch (error) {
+            console.error('Error deleting workflow:', error);
+            alert('Failed to delete workflow: ' + error.message);
+        }
+    }
+</script>
+{% endblock %} 

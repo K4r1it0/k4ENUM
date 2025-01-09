@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block head %}
+<!-- Add vis.js library -->
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<link href="https://unpkg.com/vis-network/styles/vis-network.min.css" rel="stylesheet" type="text/css" />
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1>Workflow Test (Left to Right)</h1>
+            <div class="arrow-test-container">
+                <div id="arrow-test-network" style="height: 800px; background: var(--theme-surface-2);"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+
+    // Add nodes for recon_module
+    const reconTasks = [
+        'passive_asset_discovery_v1',
+        'passive_asset_discovery_v2',
+        'asset_enrichment',
+        'wordlist_generator',
+        'dns_resolving',
+        'port_scanning',
+        'http_probing'
+    ];
+
+    reconTasks.forEach(task => {
+        nodes.add({
+            id: `recon_module:${task}`,
+            label: task.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+            group: 'recon_module'
+        });
+    });
+
+    // Add nodes for misc_module
+    const miscTasks = [
+        'tls_grabber',
+        'tls_filter',
+        'records_dump',
+        'vulnerability_scanner'
+    ];
+
+    miscTasks.forEach(task => {
+        nodes.add({
+            id: `misc_module:${task}`,
+            label: task.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+            group: 'misc_module'
+        });
+    });
+
+    // Add edges based on dependencies
+    edges.add([
+        // Recon module dependencies
+        { from: 'recon_module:passive_asset_discovery_v1', to: 'recon_module:asset_enrichment', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:passive_asset_discovery_v2', to: 'recon_module:asset_enrichment', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:asset_enrichment', to: 'recon_module:wordlist_generator', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:wordlist_generator', to: 'recon_module:dns_resolving', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:dns_resolving', to: 'recon_module:port_scanning', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:port_scanning', to: 'recon_module:http_probing', arrows: { to: { enabled: false } } },
+
+        // Misc module dependencies
+        { from: 'recon_module:http_probing', to: 'misc_module:tls_grabber', arrows: { to: { enabled: false } } },
+        { from: 'misc_module:tls_grabber', to: 'misc_module:tls_filter', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:dns_resolving', to: 'misc_module:records_dump', arrows: { to: { enabled: false } } },
+        { from: 'recon_module:http_probing', to: 'misc_module:vulnerability_scanner', arrows: { to: { enabled: false } } }
+    ]);
+
+    const container = document.getElementById('arrow-test-network');
+    const data = {
+        nodes: nodes,
+        edges: edges
+    };
+
+    const options = {
+        nodes: {
+            shape: 'box',
+            margin: 12,
+            font: {
+                size: 18,
+                face: 'Arial',
+                color: '#fff'
+            },
+            borderWidth: 2,
+            fixed: {
+                x: false,
+                y: false
+            },
+            color: {
+                background: '#1a1f2b',
+                border: 'rgba(59, 130, 246, 0.5)',
+                hover: {
+                    background: '#1a1f2b',
+                    border: 'rgba(59, 130, 246, 0.5)'
+                },
+                highlight: {
+                    background: '#1a1f2b',
+                    border: 'rgba(59, 130, 246, 0.5)'
+                }
+            }
+        },
+        edges: {
+            width: 4,
+            arrows: {
+                to: {
+                    enabled: true,
+                    scaleFactor: 1,
+                    type: 'circle'
+                }
+            },
+            smooth: {
+                enabled: false,
+                type: 'continuous'
+            },
+            dashes: false,
+            selectionWidth: 2,
+            hoverWidth: 2,
+            color: {
+                color: 'rgba(255, 255, 255, 0.15)',
+                hover: 'rgba(255, 255, 255, 0.15)',
+                highlight: 'rgba(255, 255, 255, 0.15)'
+            }
+        },
+        layout: {
+            hierarchical: {
+                enabled: true,
+                direction: 'LR',
+                sortMethod: 'directed',
+                levelSeparation: 200,
+                blockShifting: true,
+                edgeMinimization: true,
+                parentCentralization: true,
+                shakeTowards: 'roots'
+            }
+        },
+        physics: {
+            enabled: true,
+            hierarchicalRepulsion: {
+                centralGravity: 0.0,
+                springLength: 200,
+                springConstant: 0.01,
+                nodeDistance: 200,
+                damping: 0.09
+            },
+            solver: 'hierarchicalRepulsion'
+        },
+        interaction: {
+            dragNodes: true,
+            dragView: true,
+            zoomView: true,
+            hover: false,
+            hoverConnectedEdges: false,
+            selectConnectedEdges: false
+        }
+    };
+
+    const network = new vis.Network(container, data, options);
+
+    // Let the hierarchical layout stabilize, then disable physics
+    network.once('stabilized', function() {
+        network.setOptions({ physics: { enabled: false } });
+    });
+});
+</script>
+{% endblock %} 

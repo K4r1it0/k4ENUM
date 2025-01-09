@@ -1,0 +1,62 @@
+/* YAML Viewer Component Styles */
+.yaml-preview {
+    flex: 1;
+    padding: 0;
+    overflow: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 20px;
+    color: #d4d4d4;
+    background: var(--darker-bg);
+    height: 100%;
+}
+
+.yaml-preview pre {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: transparent;
+}
+
+.yaml-preview code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 20px;
+    color: #d4d4d4;
+    background: transparent !important;
+    padding: 16px !important;
+    display: block;
+    tab-size: 2;
+    white-space: pre;
+}
+
+/* Highlight.js YAML specific classes */
+.hljs-attr {
+    color: #9cdcfe !important;
+}
+
+.hljs-string {
+    color: #ce9178 !important;
+}
+
+.hljs-number {
+    color: #b5cea8 !important;
+}
+
+.hljs-bullet {
+    color: #569cd6 !important;
+}
+
+.hljs-name {
+    color: #569cd6 !important;
+}
+
+.hljs-comment {
+    color: #6a9955 !important;
+}
+
+/* Override any theme-specific styles */
+.hljs {
+    background: transparent !important;
+    color: #d4d4d4 !important;
+} 

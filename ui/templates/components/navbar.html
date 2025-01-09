@@ -1,0 +1,137 @@
+{% macro navbar() %}
+<nav class="navbar glass-blur">
+    <div class="navbar-container">
+        <div class="navbar-content">
+            <div class="navbar-brand">
+                <a href="/" class="brand-link">
+                    <span class="brand-icon">k4</span><span class="brand-text">ENUM</span>
+                </a>
+            </div>
+            
+            <div class="navbar-menu">
+                <a href="/" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2-fill"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/workflows" class="nav-link {% if request.endpoint == 'workflows' %}active{% endif %}">
+                    <i class="bi bi-diagram-2-fill"></i>
+                    <span>Workflows</span>
+                </a>
+                <a href="/executions" class="nav-link {% if request.endpoint == 'executions' %}active{% endif %}">
+                    <i class="bi bi-play-circle-fill"></i>
+                    <span>Executions</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<style>
+    .navbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 64px;
+        background: rgba(19, 19, 31, 0.8);
+        border-bottom: 1px solid var(--border-dim);
+        z-index: 1000;
+    }
+
+    .navbar-container {
+        height: 100%;
+        padding: 0 2rem;
+    }
+
+    .navbar-content {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        gap: 3rem;
+    }
+
+    .navbar-brand {
+        display: flex;
+        align-items: center;
+    }
+
+    .brand-link {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.025em;
+    }
+
+    .brand-icon {
+        background: var(--gradient-purple);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        display: inline;
+        margin: 0;
+        padding: 0;
+    }
+
+    .brand-text {
+        color: var(--text-primary);
+        display: inline;
+        margin: 0;
+        padding: 0;
+    }
+
+    .navbar-menu {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-weight: 500;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+
+    .nav-link i {
+        font-size: 1.25rem;
+    }
+
+    .nav-link:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-link.active {
+        color: var(--text-primary);
+        background: var(--theme-surface-2);
+    }
+
+    @media (max-width: 768px) {
+        .navbar-container {
+            padding: 0 1rem;
+        }
+
+        .navbar-content {
+            gap: 1.5rem;
+        }
+
+        .brand-text {
+            display: none;
+        }
+
+        .nav-link span {
+            display: none;
+        }
+
+        .nav-link {
+            padding: 0.5rem;
+        }
+    }
+</style>
+{% endmacro %} 

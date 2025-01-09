@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+
+{% block title %}k4ENUM - Dashboard{% endblock %}
+
+{% block content %}
+{% from "components/navbar.html" import navbar %}
+{{ navbar() }}
+
+<div class="main-content animate-fade-in">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Overview of your enumeration activities</p>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="glass-card stat-card">
+            <div class="stat-icon" style="background: rgba(109, 40, 217, 0.1)">
+                <i class="bi bi-diagram-2" style="color: var(--theme-accent)"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-value">{{ stats.total_workflows }}</h3>
+                <p class="stat-label">Total Workflows</p>
+            </div>
+        </div>
+
+        <div class="glass-card stat-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1)">
+                <i class="bi bi-play-circle" style="color: var(--theme-success)"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-value">{{ stats.total_executions }}</h3>
+                <p class="stat-label">Total Executions</p>
+            </div>
+        </div>
+
+        <div class="glass-card stat-card">
+            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1)">
+                <i class="bi bi-lightning" style="color: var(--theme-warning)"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-value">{{ stats.running_executions }}</h3>
+                <p class="stat-label">Running Executions</p>
+            </div>
+        </div>
+
+        <div class="glass-card stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1)">
+                <i class="bi bi-x-circle" style="color: var(--theme-error)"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-value">{{ stats.failed_executions }}</h3>
+                <p class="stat-label">Failed Executions</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="recent-section">
+        <div class="section-header">
+            <h2 class="section-title">Recent Executions</h2>
+            <a href="/executions" class="btn btn-outline btn-sm">
+                View All
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+
+        {% if recent_executions %}
+        <div class="glass-card">
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Workflow</th>
+                            <th>Started At</th>
+                            <th>Task Count</th>
+                            <th style="width: 100px">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="executionsTableBody">
+                        {% for execution in recent_executions %}
+                        <tr onclick="window.location.href='/workflow/{{ execution.workflow }}/execution/{{ execution.id }}'">
+                            <td class="workflow-name">{{ execution.workflow }}</td>
+                            <td class="timestamp">{{ execution.timestamp }}</td>
+                            <td>{{ execution.task_count }}</td>
+                            <td class="text-right">
+                                <span class="status-badge status-{{ execution.status.lower() }}">
+                                    {{ execution.status.upper() }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        Showing <span id="pageStart">0</span> to <span id="pageEnd">0</span> of <span id="totalItems">0</span> executions
+                    </div>
+                    <div class="pagination-controls">
+                        <button class="btn btn-outline btn-sm" id="prevPage" disabled>
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </button>
+                        <span class="page-info">Page <span id="currentPage">1</span></span>
+                        <button class="btn btn-outline btn-sm" id="nextPage" disabled>
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="glass-card empty-state">
+            <div class="empty-content">
+                <div class="empty-icon">
+                    <i class="bi bi-play-circle"></i>
+                </div>
+                <h3>No executions yet</h3>
+                <p>Start by running a workflow to see execution history</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .main-content {
+        padding-top: 88px;
+    }
+
+    .page-title {
+        font-size: 2rem;
+        background: var(--gradient-purple);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .page-subtitle {
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+    }
+
+    .pagination-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem;
+        border-top: 1px solid var(--border-dim);
+        margin-top: 1rem;
+    }
+
+    .pagination-info {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-info {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        padding: 0 0.5rem;
+    }
+
+    .btn-sm {
+        height: 32px;
+        padding: 0 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-dim);
+        color: var(--text-primary);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-radius: 8px;
+    }
+
+    .btn-outline:hover:not(:disabled) {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    .btn-outline:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+    }
+
+    .stat-card {
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stat-icon i {
+        font-size: 1.5rem;
+    }
+
+    .stat-content {
+        flex: 1;
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: -0.025em;
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin: 0.25rem 0 0;
+    }
+
+    .recent-section {
+        margin-top: 3rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+        margin: 0 -1px;
+    }
+
+    .table-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .empty-state {
+        padding: 4rem 2rem;
+        text-align: center;
+    }
+
+    .empty-content {
+        max-width: 320px;
+        margin: 0 auto;
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.5rem;
+        background: rgba(109, 40, 217, 0.1);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .empty-icon i {
+        font-size: 2rem;
+        color: var(--theme-accent);
+    }
+
+    .empty-state h3 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+    }
+
+    .empty-state p {
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+    // Pagination variables
+    let currentPage = 1;
+    const itemsPerPage = 4;
+    let filteredExecutions = [];
+
+    // Format workflow name
+    function formatWorkflowName(name) {
+        return name.split('_')
+                 .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                 .join(' ');
+    }
+
+    // Format timestamp
+    function formatTimestamp(timestamp) {
+        try {
+            const year = parseInt(timestamp.substring(0, 4));
+            const month = parseInt(timestamp.substring(4, 6)) - 1;
+            const day = parseInt(timestamp.substring(6, 8));
+            const hour = parseInt(timestamp.substring(9, 11));
+            const minute = parseInt(timestamp.substring(11, 13));
+            const second = parseInt(timestamp.substring(13, 15));
+            
+            const date = new Date(year, month, day, hour, minute, second);
+            
+            if (isNaN(date.getTime())) {
+                return timestamp;
+            }
+
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthStr = months[date.getMonth()];
+            const dayStr = date.getDate();
+            const yearStr = date.getFullYear();
+            const hourStr = date.getHours().toString().padStart(2, '0');
+            const minuteStr = date.getMinutes().toString().padStart(2, '0');
+            const secondStr = date.getSeconds().toString().padStart(2, '0');
+            
+            return `${monthStr} ${dayStr}, ${yearStr}, ${hourStr}:${minuteStr}:${secondStr}`;
+        } catch (error) {
+            console.error('Error parsing timestamp:', error);
+            return timestamp;
+        }
+    }
+
+    function updatePaginationControls(totalItems) {
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+        // Update pagination info
+        document.getElementById('pageStart').textContent = totalItems ? startIndex + 1 : 0;
+        document.getElementById('pageEnd').textContent = endIndex;
+        document.getElementById('totalItems').textContent = totalItems;
+        document.getElementById('currentPage').textContent = currentPage;
+
+        // Update button states
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage >= totalPages;
+    }
+
+    // Format all timestamps on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.timestamp').forEach(function(element) {
+            const timestamp = element.textContent.trim();
+            element.textContent = formatTimestamp(timestamp);
+        });
+
+        document.querySelectorAll('.workflow-name').forEach(function(element) {
+            const name = element.textContent.trim();
+            element.textContent = formatWorkflowName(name);
+        });
+
+        // Initialize pagination
+        const totalItems = document.querySelectorAll('#executionsTableBody tr').length;
+        updatePaginationControls(totalItems);
+    });
+
+    // Pagination event handlers
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            loadExecutions();
+        }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+        const totalItems = document.querySelectorAll('#executionsTableBody tr').length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            loadExecutions();
+        }
+    });
+
+    async function stopExecution(executionId) {
+        if (!confirm('Are you sure you want to stop this execution?')) return;
+        
+        try {
+            const response = await fetch(`/api/execution/${executionId}/stop`, {
+                method: 'POST'
+            });
+            
+            if (!response.ok) throw new Error('Failed to stop execution');
+            
+            window.location.reload();
+        } catch (error) {
+            console.error('Error stopping execution:', error);
+            alert('Failed to stop execution: ' + error.message);
+        }
+    }
+    </script>
+{% endblock %} 

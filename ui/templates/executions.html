@@ -1,0 +1,621 @@
+{% extends "base.html" %}
+
+{% block title %}k4ENUM - Executions{% endblock %}
+
+{% block content %}
+{% from "components/navbar.html" import navbar %}
+{{ navbar() }}
+
+<div class="main-content animate-fade-in">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Executions</h1>
+            <p class="page-subtitle">Monitor and manage your workflow executions</p>
+        </div>
+    </div>
+
+    <div class="glass-card filter-card">
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label class="filter-label">Search</label>
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Search executions...">
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Status</label>
+                <div class="select-wrapper">
+                    <select class="form-control" id="statusFilter">
+                        <option value="">All Statuses</option>
+                        <option value="running">Running</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                        <option value="pending">Pending</option>
+                    </select>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Workflow</label>
+                <div class="select-wrapper">
+                    <select class="form-control" id="workflowFilter">
+                        <option value="">All Workflows</option>
+                        {% for workflow in workflows %}
+                        <option value="{{ workflow }}">{{ workflow }}</option>
+                        {% endfor %}
+                    </select>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Date Range</label>
+                <div class="date-range">
+                    <div class="date-input">
+                        <i class="bi bi-calendar3"></i>
+                        <input type="date" class="form-control" id="startDate">
+                    </div>
+                    <span class="date-separator">to</span>
+                    <div class="date-input">
+                        <i class="bi bi-calendar3"></i>
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-card mt-4">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Workflow</th>
+                        <th>Started At</th>
+                        <th>Task Count</th>
+                        <th style="width: 100px">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="executionsTableBody">
+                    <!-- Executions will be loaded here -->
+                </tbody>
+            </table>
+            <div id="noExecutionsMessage" class="text-center p-4" style="display: none;">
+                No executions found
+            </div>
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Showing <span id="pageStart">0</span> to <span id="pageEnd">0</span> of <span id="totalItems">0</span> executions
+                </div>
+                <div class="pagination-controls">
+                    <button class="btn btn-outline btn-sm" id="prevPage" disabled>
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <span class="page-info">Page <span id="currentPage">1</span></span>
+                    <button class="btn btn-outline btn-sm" id="nextPage" disabled>
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .main-content {
+        padding-top: 88px;
+    }
+
+    .page-title {
+        font-size: 2rem;
+        background: var(--gradient-purple);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .page-subtitle {
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+    }
+
+    .filter-card {
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+        width: 100%;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 0;
+    }
+
+    .filter-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+
+    .search-box {
+        position: relative;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .search-box .form-control {
+        padding-left: 2.5rem;
+    }
+
+    .select-wrapper {
+        position: relative;
+    }
+
+    .select-wrapper i {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        pointer-events: none;
+        font-size: 0.875rem;
+    }
+
+    .select-wrapper .form-control {
+        padding-right: 2.5rem;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+
+    .date-range {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+    }
+
+    .date-input {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .date-input i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .date-input .form-control {
+        padding-left: 2.5rem;
+        width: 100%;
+    }
+
+    .date-input input[type="date"] {
+        min-width: 0;
+    }
+
+    .date-input input[type="date"]::-webkit-calendar-picker-indicator {
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        height: 100%;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 2.5rem;
+    }
+
+    .date-separator {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        padding: 0 0.25rem;
+        flex-shrink: 0;
+    }
+
+    .form-control {
+        height: 42px;
+        background: var(--theme-surface-2);
+        border: 1px solid var(--border-dim);
+        border-radius: 12px;
+        color: var(--text-primary);
+        padding: 0 1rem;
+        font-size: 0.9375rem;
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+        background: var(--theme-surface-2);
+        border-color: var(--theme-accent);
+        box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.2);
+        outline: none;
+        color: var(--text-primary);
+    }
+
+    .form-control:hover {
+        border-color: var(--border-bright);
+    }
+
+    .form-control::placeholder {
+        color: var(--text-muted);
+    }
+
+    /* Fix date input color in Webkit browsers */
+    input[type="date"] {
+        color-scheme: dark;
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.8);
+    }
+
+    .mt-4 {
+        margin-top: 1.5rem;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+        margin: 0 -1px;
+    }
+
+    .table-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .empty-state {
+        padding: 4rem 2rem;
+        text-align: center;
+    }
+
+    .empty-content {
+        max-width: 320px;
+        margin: 0 auto;
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.5rem;
+        background: rgba(109, 40, 217, 0.1);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .empty-icon i {
+        font-size: 2rem;
+        color: var(--theme-accent);
+    }
+
+    .empty-state h3 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+    }
+
+    .empty-state p {
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
+    @media (max-width: 768px) {
+        .filter-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .date-range {
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .date-input {
+            width: 100%;
+        }
+
+        .date-separator {
+            display: none;
+        }
+    }
+
+    .status-badge {
+        padding: 0.375rem 0;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 100px;
+        text-align: center;
+    }
+
+    .status-running {
+        background: var(--gradient-warning);
+        color: white;
+    }
+
+    .status-completed {
+        background: var(--gradient-success);
+        color: white;
+    }
+
+    .status-failed {
+        background: var(--gradient-error);
+        color: white;
+    }
+
+    .status-pending {
+        background: var(--theme-surface-2);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-dim);
+    }
+
+    .pagination-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem;
+        border-top: 1px solid var(--border-dim);
+        margin-top: 1rem;
+    }
+
+    .pagination-info {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-info {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        padding: 0 0.5rem;
+    }
+
+    .btn-sm {
+        height: 32px;
+        padding: 0 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-dim);
+        color: var(--text-primary);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-radius: 8px;
+    }
+
+    .btn-outline:hover:not(:disabled) {
+        background: var(--theme-surface-2);
+        border-color: var(--border-bright);
+    }
+
+    .btn-outline:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Format workflow name
+    function formatWorkflowName(name) {
+        return name.split('_')
+                 .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                 .join(' ');
+    }
+
+    // Format timestamp
+    function formatTimestamp(timestamp) {
+        // Parse timestamp in format "YYYYMMDD_HHMMSS"
+        const year = timestamp.substring(0, 4);
+        const month = timestamp.substring(4, 6);
+        const day = timestamp.substring(6, 8);
+        const hour = timestamp.substring(9, 11);
+        const minute = timestamp.substring(11, 13);
+        const second = timestamp.substring(13, 15);
+        
+        const date = new Date(year, month - 1, day, hour, minute, second);
+        const options = {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        };
+        return date.toLocaleString('en-US', options);
+    }
+
+    // Pagination variables
+    let currentPage = 1;
+    const itemsPerPage = 4;
+    let filteredExecutions = [];
+
+    // Load and display executions
+    async function loadExecutions() {
+        try {
+            const response = await fetch('/api/executions');
+            const executions = await response.json();
+            
+            const tableBody = document.getElementById('executionsTableBody');
+            const noExecutionsMessage = document.getElementById('noExecutionsMessage');
+            
+            if (!executions || executions.length === 0) {
+                tableBody.innerHTML = '';
+                noExecutionsMessage.style.display = 'block';
+                updatePaginationControls(0);
+                return;
+            }
+            
+            noExecutionsMessage.style.display = 'none';
+            
+            // Filter executions based on search, status, workflow, and date range
+            filteredExecutions = executions;
+            
+            // Apply workflow filter
+            const workflowFilter = document.getElementById('workflowFilter').value;
+            if (workflowFilter) {
+                filteredExecutions = filteredExecutions.filter(e => e.workflow === workflowFilter);
+            }
+            
+            // Apply status filter
+            const statusFilter = document.getElementById('statusFilter').value;
+            if (statusFilter) {
+                filteredExecutions = filteredExecutions.filter(e => e.status.toLowerCase() === statusFilter);
+            }
+            
+            // Apply search filter
+            const searchFilter = document.getElementById('searchInput').value.toLowerCase();
+            if (searchFilter) {
+                filteredExecutions = filteredExecutions.filter(e => 
+                    e.workflow.toLowerCase().includes(searchFilter) ||
+                    e.status.toLowerCase().includes(searchFilter)
+                );
+            }
+            
+            // Apply date range filter
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            if (startDate || endDate) {
+                filteredExecutions = filteredExecutions.filter(e => {
+                    const executionDate = new Date(e.timestamp);
+                    if (startDate && new Date(startDate) > executionDate) return false;
+                    if (endDate) {
+                        const endDateTime = new Date(endDate);
+                        endDateTime.setHours(23, 59, 59, 999);
+                        if (endDateTime < executionDate) return false;
+                    }
+                    return true;
+                });
+            }
+
+            // Calculate pagination
+            const totalItems = filteredExecutions.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+            const paginatedExecutions = filteredExecutions.slice(startIndex, endIndex);
+            
+            // Update table content
+            tableBody.innerHTML = paginatedExecutions.map(execution => `
+                <tr onclick="window.location.href='/workflow/${execution.workflow}/execution/${execution.id}'">
+                    <td>${formatWorkflowName(execution.workflow)}</td>
+                    <td>${formatTimestamp(execution.timestamp)}</td>
+                    <td>${execution.task_count}</td>
+                    <td class="text-right">
+                        <span class="status-badge status-${execution.status.toLowerCase()}">
+                            ${execution.status.toUpperCase()}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Update pagination controls
+            updatePaginationControls(totalItems);
+
+            // Show no executions message if no results after filtering
+            if (filteredExecutions.length === 0) {
+                noExecutionsMessage.style.display = 'block';
+            }
+
+            // Update workflow filter options
+            const uniqueWorkflows = [...new Set(executions.map(e => e.workflow))];
+            const workflowSelect = document.getElementById('workflowFilter');
+            const currentValue = workflowSelect.value;
+            
+            workflowSelect.innerHTML = `
+                <option value="">All Workflows</option>
+                ${uniqueWorkflows.map(workflow => `
+                    <option value="${workflow}" ${workflow === currentValue ? 'selected' : ''}>
+                        ${formatWorkflowName(workflow)}
+                    </option>
+                `).join('')}
+            `;
+        } catch (error) {
+            console.error('Error loading executions:', error);
+        }
+    }
+
+    function updatePaginationControls(totalItems) {
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+        // Update pagination info
+        document.getElementById('pageStart').textContent = totalItems ? startIndex + 1 : 0;
+        document.getElementById('pageEnd').textContent = endIndex;
+        document.getElementById('totalItems').textContent = totalItems;
+        document.getElementById('currentPage').textContent = currentPage;
+
+        // Update button states
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage >= totalPages;
+    }
+
+    // Pagination event handlers
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            loadExecutions();
+        }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredExecutions.length / itemsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            loadExecutions();
+        }
+    });
+
+    // Reset pagination when filters change
+    function resetPagination() {
+        currentPage = 1;
+        loadExecutions();
+    }
+
+    // Update filter handlers to reset pagination
+    document.getElementById('searchInput').addEventListener('input', resetPagination);
+    document.getElementById('workflowFilter').addEventListener('change', resetPagination);
+    document.getElementById('statusFilter').addEventListener('change', resetPagination);
+    document.getElementById('startDate').addEventListener('change', resetPagination);
+    document.getElementById('endDate').addEventListener('change', resetPagination);
+
+    // Initial load
+    loadExecutions();
+
+    // Refresh executions periodically
+    setInterval(loadExecutions, 5000);
+</script>
+{% endblock %} 

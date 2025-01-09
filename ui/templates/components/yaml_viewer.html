@@ -1,0 +1,114 @@
+{% macro yaml_viewer(content, id='yaml-preview') %}
+<div class="yaml-viewer">
+    <div class="yaml-content">
+        <pre><code class="language-yaml hljs" id="{{ id }}">{{ content }}</code></pre>
+    </div>
+</div>
+
+<style>
+.yaml-viewer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.yaml-content {
+    flex: 1;
+    overflow: auto;
+    background: var(--theme-surface-2);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+.yaml-content pre {
+    margin: 0;
+    padding: 2px !important;
+    padding-left: 2px !important;
+    background: var(--theme-surface-2) !important;
+    flex: 1;
+    min-height: 100%;
+}
+
+.yaml-content code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 13px !important;
+    line-height: 20px !important;
+    background: var(--theme-surface-2) !important;
+    padding: 0 !important;
+    display: block;
+    tab-size: 2;
+    white-space: pre;
+    margin: 0;
+}
+
+.yaml-content .hljs {
+    background: var(--theme-surface-2) !important;
+    padding: 0 !important;
+    font-size: 13px !important;
+    line-height: 20px !important;
+    margin: 0;
+}
+
+/* YAML Syntax Colors */
+.hljs {
+    color: #c9d1d9 !important;
+    background: var(--theme-surface-2) !important;
+    margin: 0;
+    padding: 0 !important;
+}
+
+.hljs-attr {
+    color: #9cdcfe !important;  /* Light blue for keys */
+}
+
+.hljs-string {
+    color: #ce9178 !important;  /* Orange/coral for strings */
+}
+
+.hljs-bullet {
+    color: #569cd6 !important;  /* Blue for dashes */
+}
+
+.hljs-number {
+    color: #b5cea8 !important;  /* Light green for numbers */
+}
+
+.hljs-literal {
+    color: #569cd6 !important;  /* Blue for literals */
+}
+
+.hljs-comment {
+    color: #6a9955 !important;  /* Green for comments */
+}
+
+.hljs-keyword {
+    color: #569cd6 !important;  /* Blue for keywords */
+}
+
+pre code.hljs {
+    padding: 0;
+    background: var(--theme-surface-2) !important;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize syntax highlighting for this component
+    hljs.configure({
+        ignoreUnescapedHTML: true,
+        languages: ['yaml']
+    });
+    const codeElement = document.getElementById('{{ id }}');
+    if (codeElement) {
+        hljs.highlightElement(codeElement);
+    }
+});
+</script>
+{% endmacro %} 

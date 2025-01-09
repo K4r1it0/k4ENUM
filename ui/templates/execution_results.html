@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% from "components/navbar.html" import navbar %}
+{{ navbar() }}
+<div class="main-content">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Results</h1>
+            <p class="page-subtitle">Monitor and manage your workflow executions</p>
+        </div>
+    </div>
+
+    <div class="glass-card filter-card">
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label class="filter-label">Search</label>
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Search tasks...">
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Status</label>
+                <div class="select-wrapper">
+                    <select class="form-control" id="statusFilter">
+                        <option value="all">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="running">Running</option>
+                        <option value="done">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Module</label>
+                <div class="select-wrapper">
+                    <select class="form-control" id="moduleFilter">
+                        <option value="all">All Modules</option>
+                    </select>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Output</label>
+                <div class="select-wrapper">
+                    <select class="form-control" id="outputFilter">
+                        <option value="all">All Files</option>
+                        <option value="has_output">Has Output</option>
+                        <option value="no_output">No Output</option>
+                    </select>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-card mt-4">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 25%">TASK NAME</th>
+                        <th style="width: 25%">MODULE NAME</th>
+                        <th style="width: 20%">STATUS</th>
+                        <th style="width: 15%" class="text-right">SIZE</th>
+                        <th style="width: 15%" class="text-right">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in task_results %}
+                        {% if ':' in task.name %}
+                        {% set module_name = task.name.split(':')[0].upper() %}
+                        {% set task_name = task.name.split(':')[1].replace('_', ' ').title() %}
+                        <tr {% if task.size > 0 %}onclick="toggleContent('task-{{ loop.index }}')" style="cursor: pointer"{% endif %} data-module="{{ module_name }}" data-status="{{ task.status }}" data-task-id="task-{{ loop.index }}">
+                            <td style="width: 25%">{{ task_name }}</td>
+                            <td style="width: 25%">{{ module_name }}</td>
+                            <td style="width: 20%">
+                                <span class="status-badge status-{{ task.status }}">
+                                    {{ task.status.upper() }}
+                                </span>
+                            </td>
+                            <td style="width: 15%" class="text-right">{{ task.size }} KB</td>
+                            <td style="width: 15%" class="text-right">
+                                <div class="action-buttons">
+                                    <button class="action-btn {% if task.size == 0 %}disabled{% endif %}" onclick="event.stopPropagation(); copyTaskContent('{{ task.name }}')" title="Copy content">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                    <button class="action-btn {% if task.size == 0 %}disabled{% endif %}" onclick="event.stopPropagation(); window.location.href='/workflow/{{ workflow_name }}/execution/{{ scan_id }}/{{ task.name }}/download'" title="Download file">
+                                        <i class="bi bi-download"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="content-row" id="task-{{ loop.index }}">
+                            <td colspan="5">
+                                {% if task.status in ['done', 'failed'] %}
+                                    {% if task.size > 10240 %}
+                                    <div class="large-file">
+                                        <p>Large file ({{ (task.size / 1024)|round(1) }} KB) 
+                                           <a href="/workflow/{{ workflow_name }}/execution/{{ scan_id }}/{{ task.name }}">View full content</a>
+                                        </p>
+                                        <pre>{{ task.content[:1000] }}...</pre>
+                                    </div>
+                                    {% else %}
+                                    <div class="content-box">
+                                        <pre id="content-text-{{ loop.index }}" onclick="copyContent('task-{{ loop.index }}')">{{ task.content }}</pre>
+                                    </div>
+                                    {% endif %}
+                                {% else %}
+                                <div class="status-msg">Task is {{ task.status }}...</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+<style>
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    padding-top: 88px;
+}
+
+.filter-card {
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.filter-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.search-box {
+    position: relative;
+}
+
+.search-box i {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.search-box .form-control {
+    padding-left: 2.5rem;
+}
+
+.select-wrapper {
+    position: relative;
+}
+
+.select-wrapper i {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+    font-size: 0.875rem;
+}
+
+.select-wrapper .form-control {
+    padding-right: 2.5rem;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.form-control {
+    height: 42px;
+    background: var(--theme-surface-2);
+    border: 1px solid var(--border-dim);
+    border-radius: 12px;
+    color: var(--text-primary);
+    padding: 0 1rem;
+    font-size: 0.9375rem;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    background: var(--theme-surface-2);
+    border-color: var(--theme-accent);
+    box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.2);
+    outline: none;
+    color: var(--text-primary);
+}
+
+.form-control:hover {
+    border-color: var(--border-bright);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+/* Content specific styles */
+.content-row {
+    display: none;
+}
+
+.content-row.active {
+    display: table-row !important;
+}
+
+.content-box {
+    position: relative;
+    padding: 1rem;
+}
+
+.copy-btn {
+    display: none;
+}
+
+pre {
+    margin: 0;
+    padding: 1rem;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9rem;
+    max-height: 500px;
+    overflow: auto;
+    background: var(--theme-surface);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+pre:hover {
+    background: var(--theme-surface-2);
+}
+
+pre:active {
+    background: var(--theme-surface-3);
+}
+
+.toggle-icon {
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.toggle-icon.active {
+    transform: rotate(180deg);
+}
+
+.large-file {
+    padding: 1rem;
+    color: var(--text-secondary);
+}
+
+.large-file a {
+    color: var(--theme-accent);
+    text-decoration: none;
+}
+
+.status-msg {
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.glass-card {
+    background: var(--theme-surface);
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+}
+
+.mt-4 {
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .filter-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+.page-title {
+    font-size: 2rem;
+    background: var(--gradient-purple);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.page-subtitle {
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.action-buttons {
+    display: inline-flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.action-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-dim);
+    background: var(--theme-surface-2);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    background: var(--theme-surface-3);
+    border-color: var(--border-bright);
+    color: var(--text-primary);
+}
+
+.action-btn i {
+    font-size: 1rem;
+}
+
+.action-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--theme-surface);
+    border-color: var(--border-dim);
+    color: var(--text-muted);
+}
+
+.action-btn.disabled:hover {
+    background: var(--theme-surface);
+    border-color: var(--border-dim);
+    color: var(--text-muted);
+}
+
+.table-container {
+    margin: -1px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+}
+
+.table th {
+    padding: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: var(--theme-surface);
+    border-bottom: 1px solid var(--border-dim);
+    letter-spacing: 0.05em;
+    text-align: left;
+}
+
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-dim);
+    background: var(--theme-surface);
+    text-align: left;
+}
+
+.table th.text-right,
+.table td.text-right {
+    text-align: right;
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
+
+.page-header {
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.header-content {
+    flex: 1;
+}
+
+.header-actions {
+    flex-shrink: 0;
+    margin-left: 2rem;
+}
+
+.btn {
+    height: 36px;
+    padding: 0 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.btn i {
+    font-size: 1.125rem;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border-dim);
+    color: var(--text-primary);
+}
+
+.btn-outline:hover {
+    background: var(--theme-surface-2);
+    border-color: var(--border-bright);
+}
+</style>
+
+<script>
+function toggleContent(taskId) {
+    const contentRow = document.getElementById(taskId);
+    if (contentRow) {
+        // Hide any previously opened content
+        document.querySelectorAll('.content-row.active').forEach(row => {
+            if (row.id !== taskId) {
+                row.classList.remove('active');
+                row.style.display = 'none';
+            }
+        });
+        // Toggle the clicked content
+        if (contentRow.classList.contains('active')) {
+            contentRow.classList.remove('active');
+            contentRow.style.display = 'none';
+        } else {
+            contentRow.classList.add('active');
+            contentRow.style.display = 'table-row';
+        }
+    }
+}
+
+function copyContent(taskId) {
+    const contentElement = document.getElementById(`content-text-${taskId.replace('task-', '')}`);
+    const content = contentElement.textContent;
+    
+    navigator.clipboard.writeText(content).then(() => {
+        // Show temporary "Copied!" message
+        const originalBackground = contentElement.style.background;
+        contentElement.style.background = 'var(--theme-accent)';
+        contentElement.style.color = 'white';
+        
+        setTimeout(() => {
+            contentElement.style.background = originalBackground;
+            contentElement.style.color = 'var(--text-primary)';
+        }, 500);
+    });
+}
+
+function filterTasks() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const moduleFilter = document.getElementById('moduleFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    const outputFilter = document.getElementById('outputFilter').value;
+    const tasks = document.querySelectorAll('tr[data-module]');
+
+    tasks.forEach(task => {
+        // Get the task name from the first column and module from the second column
+        const taskName = task.children[0].textContent.toLowerCase();
+        const moduleValue = task.children[1].textContent;
+        const statusValue = task.getAttribute('data-status');
+        const sizeText = task.querySelector('.text-right').textContent;
+        const sizeValue = parseFloat(sizeText.replace(' KB', ''));
+        const taskId = task.getAttribute('data-task-id');
+        
+        const matchesSearch = taskName.includes(searchTerm);
+        const matchesModule = moduleFilter === 'all' || moduleValue === moduleFilter;
+        const matchesStatus = statusFilter === 'all' || statusValue === statusFilter;
+        const matchesOutput = outputFilter === 'all' || 
+            (outputFilter === 'has_output' && sizeValue > 0) || 
+            (outputFilter === 'no_output' && sizeValue === 0);
+
+        if (matchesSearch && matchesModule && matchesStatus && matchesOutput) {
+            task.style.display = '';
+        } else {
+            task.style.display = 'none';
+        }
+        
+        // Always hide the content row when filtering
+        const contentRow = document.getElementById(taskId);
+        if (contentRow) {
+            contentRow.style.display = 'none';
+            contentRow.classList.remove('active');
+        }
+    });
+}
+
+function copyTaskContent(taskId) {
+    const contentElement = document.getElementById(`content-text-${taskId.replace('task-', '')}`);
+    const content = contentElement.textContent;
+    
+    navigator.clipboard.writeText(content).then(() => {
+        // Show temporary feedback on the copy button
+        const copyBtn = event.currentTarget;
+        const originalIcon = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="bi bi-check"></i>';
+        copyBtn.style.background = 'var(--theme-accent)';
+        copyBtn.style.borderColor = 'var(--theme-accent)';
+        copyBtn.style.color = 'white';
+        
+        setTimeout(() => {
+            copyBtn.innerHTML = originalIcon;
+            copyBtn.style.background = '';
+            copyBtn.style.borderColor = '';
+            copyBtn.style.color = '';
+        }, 1000);
+    });
+}
+
+// Setup everything when the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const moduleSelect = document.getElementById('moduleFilter');
+    const modules = new Set();
+    
+    document.querySelectorAll('tr[data-module]').forEach(task => {
+        const moduleName = task.children[1].textContent;
+        if (moduleName) {
+            modules.add(moduleName);
+        }
+    });
+
+    // Clear existing options except "All Modules"
+    while (moduleSelect.options.length > 1) {
+        moduleSelect.remove(1);
+    }
+
+    // Add sorted modules
+    Array.from(modules).sort().forEach(module => {
+        const option = document.createElement('option');
+        option.value = module;
+        option.textContent = module;
+        moduleSelect.appendChild(option);
+    });
+
+    // Add event listeners for filter changes
+    document.getElementById('searchInput').addEventListener('input', filterTasks);
+    document.getElementById('moduleFilter').addEventListener('change', filterTasks);
+    document.getElementById('statusFilter').addEventListener('change', filterTasks);
+    document.getElementById('outputFilter').addEventListener('change', filterTasks);
+
+    // Initial filter
+    filterTasks();
+
+    // Check for task filter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const taskFilter = urlParams.get('task');
+    if (taskFilter) {
+        // Set the search input to the task name
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = taskFilter.split(':')[1].replace(/_/g, ' ');
+        }
+        
+        // Set the module filter if it exists
+        const moduleSelect = document.getElementById('moduleFilter');
+        if (moduleSelect) {
+            const moduleName = taskFilter.split(':')[0];
+            const moduleOption = Array.from(moduleSelect.options).find(option => option.value === moduleName);
+            if (moduleOption) {
+                moduleSelect.value = moduleName;
+            }
+        }
+        
+        // Apply the filters
+        filterTasks();
+    }
+});
+</script>
+{% endblock %}
