@@ -1,0 +1,8 @@
+workflow:
+  name: "New"
+  description: ""
+  modules:
+    - name: "test"
+      tasks:
+        - test:
+            command: "test"

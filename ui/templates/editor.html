@@ -565,7 +565,27 @@
     </div>
 </div>
 
-<!-- Workflow Name Modal -->
+<!-- Arguments Modal -->
+<div class="modal fade" id="argumentsModal" tabindex="-1" aria-labelledby="argumentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="argumentsModalLabel">Workflow Arguments</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="argumentsForm">
+                    <!-- Arguments will be added here dynamically -->
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="runWithArgsBtn">Run Workflow</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -659,5 +679,80 @@
             document.body.style.userSelect = '';
         }
     });
+
+    function runWorkflow() {
+        try {
+            const editor = ace.edit("workflow-editor");
+            const yamlContent = editor.getValue();
+            const config = jsyaml.load(yamlContent);
+            
+            // Check if workflow has arguments
+            const hasArguments = config?.workflow?.arguments || [];
+            
+            if (hasArguments.length > 0) {
+                // Clear previous arguments
+                const form = document.getElementById('argumentsForm');
+                form.innerHTML = '';
+                
+                // Add form fields for each argument
+                hasArguments.forEach(arg => {
+                    const argName = Object.keys(arg)[0];
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    div.innerHTML = `
+                        <label for="arg-${argName}" class="form-label">${argName}</label>
+                        <input type="text" class="form-control" id="arg-${argName}" 
+                               name="${argName}" placeholder="Enter ${argName}" required>
+                    `;
+                    form.appendChild(div);
+                });
+                
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('argumentsModal'));
+                modal.show();
+                
+                // Handle run button click
+                document.getElementById('runWithArgsBtn').onclick = () => {
+                    const formData = new FormData(form);
+                    const args = {};
+                    for (let [key, value] of formData.entries()) {
+                        args[key] = value;
+                    }
+                    startWorkflow(args);
+                    modal.hide();
+                };
+            } else {
+                // No arguments needed, run directly
+                startWorkflow({});
+            }
+        } catch (e) {
+            console.error('Error parsing YAML:', e);
+            alert('Error parsing workflow configuration');
+        }
+    }
+
+    function startWorkflow(args) {
+        const workflowName = document.getElementById('workflowName').value;
+        
+        fetch(`/api/workflow/${workflowName}/run`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ args: args })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            // Redirect to execution view
+            window.location.href = `/workflow/${workflowName}/execution/${data.scan_id}`;
+        })
+        .catch(error => {
+            console.error('Error running workflow:', error);
+            alert('Error running workflow: ' + error.message);
+        });
+    }
 </script>
 {% endblock %} 

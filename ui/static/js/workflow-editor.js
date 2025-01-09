@@ -53,6 +53,10 @@ class WorkflowEditor {
                 .join(' ');
             titleElement.textContent = capitalizedName;
             document.title = `k4ENUM - ${capitalizedName}`;
+
+            // Add click event to edit workflow data
+            titleElement.style.cursor = 'pointer';
+            titleElement.onclick = () => this.showEditWorkflowModal();
         }
     }
 
@@ -311,6 +315,21 @@ class WorkflowEditor {
                 return;
             }
 
+            const taskId = `${moduleName}:${taskName}`;
+
+            // Check for duplicate task
+            const existingModule = this.currentWorkflow.config.workflow.modules.find(m => m.name === moduleName);
+            if (existingModule && existingModule.tasks.some(t => Object.keys(t)[0] === taskName)) {
+                alert('A task with this name already exists in this module. Please choose a different name.');
+                return;
+            }
+
+            // Also check in visualization for duplicate task ID
+            if (this.nodes.get(taskId)) {
+                alert('A task with this name already exists in this module. Please choose a different name.');
+                return;
+            }
+
             // Get arguments if any
             const args = this.getArgumentsFromForm('moduleArgumentsList');
 
@@ -321,54 +340,64 @@ class WorkflowEditor {
             }
             const colors = this.moduleColorMap.get(moduleName);
 
-            const taskId = `${moduleName}:${taskName}`;
-
-            // Add node to visualization
-            this.nodes.add({
-                id: taskId,
-                label: taskName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-                color: colors
-            });
-
-            // Find or create module in workflow configuration
-            let moduleIndex = this.currentWorkflow.config.workflow.modules.findIndex(m => m.name === moduleName);
-            if (moduleIndex === -1) {
-                this.currentWorkflow.config.workflow.modules.push({
-                    name: moduleName,
-                    tasks: []
+            try {
+                // Add node to visualization
+                this.nodes.add({
+                    id: taskId,
+                    label: taskName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+                    color: colors
                 });
-                moduleIndex = this.currentWorkflow.config.workflow.modules.length - 1;
-            }
 
-            // Add task to module
-            const taskConfig = {
-                [taskName]: {
-                    command: command
+                // Find or create module in workflow configuration
+                let moduleIndex = this.currentWorkflow.config.workflow.modules.findIndex(m => m.name === moduleName);
+                if (moduleIndex === -1) {
+                    this.currentWorkflow.config.workflow.modules.push({
+                        name: moduleName,
+                        tasks: []
+                    });
+                    moduleIndex = this.currentWorkflow.config.workflow.modules.length - 1;
                 }
-            };
 
-            if (Object.keys(args).length > 0) {
-                taskConfig[taskName].args = args;
-            }
+                // Add task to module
+                const taskConfig = {
+                    [taskName]: {
+                        command: command
+                    }
+                };
 
-            this.currentWorkflow.config.workflow.modules[moduleIndex].tasks.push(taskConfig);
+                if (Object.keys(args).length > 0) {
+                    taskConfig[taskName].args = args;
+                }
 
-            // Update YAML view
-            this.updateYamlView();
+                this.currentWorkflow.config.workflow.modules[moduleIndex].tasks.push(taskConfig);
 
-            // Clean up
-            modal.hide();
-            saveButton.removeEventListener('click', saveHandler);
+                // Update YAML view
+                this.updateYamlView();
 
-            // Force network update and fit view
-            if (this.network) {
-                this.network.setData({
-                    nodes: this.nodes,
-                    edges: this.edges
-                });
-                setTimeout(() => {
-                    this.network.fit();
-                }, 100);
+                // Clean up
+                modal.hide();
+                saveButton.removeEventListener('click', saveHandler);
+
+                // Force network update and fit view
+                if (this.network) {
+                    this.network.setData({
+                        nodes: this.nodes,
+                        edges: this.edges
+                    });
+                    setTimeout(() => {
+                        this.network.fit();
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('Error adding task:', error);
+                alert('Error adding task: ' + error.message);
+                
+                // Clean up any partial additions
+                try {
+                    this.nodes.remove(taskId);
+                } catch (e) {
+                    console.error('Error cleaning up node:', e);
+                }
             }
         };
 
@@ -708,36 +737,76 @@ class WorkflowEditor {
     }
 
     async runWorkflow() {
-        if (!this.workflowName) return;
-        const args = {};
-        if (this.currentWorkflow.config.workflow.args) {
-            this.currentWorkflow.config.workflow.args.forEach(arg => {
-                const key = Object.keys(arg)[0];
-                args[key] = arg[key];
-            });
-        }
-        fetch(`/api/workflow/${this.workflowName}/run`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ args })
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to start workflow');
-            return response.json();
-        })
-        .then(data => {
-            if (data.scan_id) {
-                window.location.href = `/workflow/${this.workflowName}/execution/${data.scan_id}`;
+        try {
+            // Get the current workflow configuration
+            const config = this.currentWorkflow.config;
+            
+            // Check if workflow has arguments
+            const hasArguments = config?.workflow?.arguments || [];
+            
+            if (hasArguments.length > 0) {
+                // Clear previous arguments
+                const form = document.getElementById('argumentsForm');
+                form.innerHTML = '';
+                
+                // Add form fields for each argument
+                hasArguments.forEach(arg => {
+                    const argName = Object.keys(arg)[0];
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    div.innerHTML = `
+                        <label for="arg-${argName}" class="form-label">${argName}</label>
+                        <input type="text" class="form-control" id="arg-${argName}" 
+                               name="${argName}" placeholder="Enter ${argName}" required>
+                    `;
+                    form.appendChild(div);
+                });
+                
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('argumentsModal'));
+                modal.show();
+                
+                // Handle run button click
+                document.getElementById('runWithArgsBtn').onclick = () => {
+                    const formData = new FormData(form);
+                    const args = {};
+                    for (let [key, value] of formData.entries()) {
+                        args[key] = value;
+                    }
+                    this.startWorkflow(args);
+                    modal.hide();
+                };
             } else {
-                throw new Error('No scan ID received from server');
+                // No arguments needed, run directly
+                this.startWorkflow({});
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to start workflow: ' + error.message);
-        });
+        } catch (e) {
+            console.error('Error running workflow:', e);
+            alert('Error running workflow configuration');
+        }
+    }
+
+    async startWorkflow(args) {
+        try {
+            const response = await fetch(`/api/workflow/${this.workflowName}/run`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ args: args })
+            });
+            
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // Redirect to execution view
+            window.location.href = `/workflow/${this.workflowName}/execution/${data.scan_id}`;
+        } catch (error) {
+            console.error('Error running workflow:', error);
+            alert('Error running workflow: ' + error.message);
+        }
     }
 
     getArgumentsFromForm(listId) {
@@ -775,6 +844,15 @@ class WorkflowEditor {
         const nameInput = document.getElementById('workflowName');
         const descriptionInput = document.getElementById('workflowDescription');
         const argumentsList = document.getElementById('workflowArgumentsList');
+        const modalTitle = document.getElementById('newWorkflowModalLabel');
+
+        // Reset modal title and button text for new workflow
+        if (modalTitle) {
+            modalTitle.textContent = 'New Workflow';
+        }
+        if (createButton) {
+            createButton.textContent = 'Create';
+        }
 
         // Clear previous values
         nameInput.value = '';
@@ -798,7 +876,7 @@ class WorkflowEditor {
             if (description) {
                 this.currentWorkflow.config.workflow.description = description;
             }
-                if (Object.keys(args).length > 0) {
+            if (Object.keys(args).length > 0) {
                 this.currentWorkflow.config.workflow.args = args;
             }
 
@@ -806,19 +884,98 @@ class WorkflowEditor {
             this.updateWorkflowTitle(name);
 
             // Clean up
-                modal.hide();
+            modal.hide();
             createButton.removeEventListener('click', createHandler);
             
             // Update YAML view
             this.updateYamlView();
-
-            // After creating the workflow, show the task properties modal
-            setTimeout(() => {
-                this.addNode();
-            }, 100);
         };
 
         createButton.addEventListener('click', createHandler);
+        modal.show();
+    }
+
+    showEditWorkflowModal() {
+        const modal = new bootstrap.Modal(document.getElementById('newWorkflowModal'));
+        const createButton = document.getElementById('createWorkflow');
+        const nameInput = document.getElementById('workflowName');
+        const descriptionInput = document.getElementById('workflowDescription');
+        const argumentsList = document.getElementById('workflowArgumentsList');
+        const modalTitle = document.getElementById('newWorkflowModalLabel');
+
+        // Update modal title for edit mode
+        if (modalTitle) {
+            modalTitle.textContent = 'Edit Workflow';
+        }
+        if (createButton) {
+            createButton.textContent = 'Save Changes';
+        }
+
+        // Fill in existing values
+        nameInput.value = this.currentWorkflow.config.workflow.name || '';
+        descriptionInput.value = this.currentWorkflow.config.workflow.description || '';
+        argumentsList.innerHTML = '';
+
+        // Fill in existing arguments
+        const args = this.currentWorkflow.config.workflow.args || {};
+        Object.entries(args).forEach(([key, value]) => {
+            const row = document.createElement('div');
+            row.className = 'argument-row';
+            row.innerHTML = `
+                <input type="text" class="form-control" placeholder="Key" value="${key}">
+                <input type="text" class="form-control" placeholder="Value" value="${value}">
+                <button type="button" class="btn-remove" onclick="this.parentElement.remove()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            `;
+            argumentsList.appendChild(row);
+        });
+
+        const saveHandler = () => {
+            const name = nameInput.value.trim();
+            const description = descriptionInput.value.trim();
+            
+            if (!name) {
+                alert('Please provide a workflow name');
+                return;
+            }
+
+            // Get arguments if any
+            const args = this.getArgumentsFromForm('workflowArgumentsList');
+
+            // Update workflow configuration
+            this.currentWorkflow.config.workflow.name = name;
+            if (description) {
+                this.currentWorkflow.config.workflow.description = description;
+            } else {
+                delete this.currentWorkflow.config.workflow.description;
+            }
+            if (Object.keys(args).length > 0) {
+                this.currentWorkflow.config.workflow.args = args;
+            } else {
+                delete this.currentWorkflow.config.workflow.args;
+            }
+
+            // Update UI
+            this.updateWorkflowTitle(name);
+
+            // Clean up
+            modal.hide();
+            createButton.removeEventListener('click', saveHandler);
+            
+            // Update YAML view
+            this.updateYamlView();
+
+            // Reset modal title and button text
+            if (modalTitle) {
+                modalTitle.textContent = 'New Workflow';
+            }
+            if (createButton) {
+                createButton.textContent = 'Create';
+            }
+        };
+
+        createButton.addEventListener('click', saveHandler);
         modal.show();
     }
 

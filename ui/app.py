@@ -362,20 +362,20 @@ def run_workflow(name):
         bash_cmd = [
             "bash",
             "-c",
-            f"source ../venv/bin/activate && python ../scan.py -w {name} {' '.join(['-a'] + arg_list) if arg_list else ''}"
+            f"cd {PROJECT_ROOT} && source venv/bin/activate && python scan.py -w {name} {' '.join(['-a'] + arg_list) if arg_list else ''}"
         ]
-        
+        print(bash_cmd)
         # Start the process
         process = subprocess.Popen(
             bash_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            cwd=str(PROJECT_ROOT / "ui")
+            cwd=str(PROJECT_ROOT)
         )
         
         # Wait a short time for the scan directory to be created
-        time.sleep(1)
+        time.sleep(2)
         
         # Check for new scan directory
         if os.path.exists(workflow_exec_dir):
@@ -388,6 +388,11 @@ def run_workflow(name):
                     'scan_id': scan_id
                 })
         
+        # If no scan directory found, check process output for errors
+        stdout, stderr = process.communicate(timeout=1)
+        if stderr:
+            raise Exception(f"Workflow failed to start: {stderr}")
+            
         raise Exception("Could not find new scan directory")
         
     except Exception as e:

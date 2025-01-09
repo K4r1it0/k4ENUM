@@ -1,6 +1,8 @@
 workflow:
   name: "test"
   description: "Passive reconnaissance workflow"
+  arguments:
+    - domain: ""
   modules:
     - name: "recon_module"
       tasks:
@@ -33,7 +35,6 @@ workflow:
             command: "cat {recon_module:port_scanning} | httpx -silent -t 200 | sort -u"
             requires:
               - "recon_module:port_scanning"
-
 
     - name: "misc_module"
       tasks:
