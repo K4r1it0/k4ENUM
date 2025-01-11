@@ -1,0 +1,102 @@
+workflow:
+  name: "hybrid_recon"
+  description: "Optimized hybrid reconnaissance workflow"
+  args:
+    - domain: ""
+  modules:
+    - name: "passive_recon_module"
+      tasks:
+        - passive_asset_discovery_v1:
+            command: "subfinder -t 100 -all -silent -d {domain} 2> /dev/null"
+        
+        - passive_asset_discovery_v2:
+            command: "assetfinder --subs-only {domain} 2> /dev/null"
+        
+        - passive_asset_enrichment:
+            command: "cat {passive_recon_module:passive_asset_discovery_v1} {passive_recon_module:passive_asset_discovery_v2} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true"
+            requires:
+              - "passive_recon_module:passive_asset_discovery_v1"
+              - "passive_recon_module:passive_asset_discovery_v2"
+
+        - passive_wordlist:
+            command: "cat {passive_recon_module:passive_asset_enrichment} | alterx -enrich -silent 2> /dev/null || true"
+            requires:
+              - "passive_recon_module:passive_asset_enrichment"
+
+        - passive_dns_resolving:
+            command: "cat {passive_recon_module:passive_wordlist} | puredns resolve -r ~/resolvers.txt -l 1000 2> /dev/null"
+            requires:
+              - "passive_recon_module:passive_wordlist"
+
+        - passive_port_scan:
+            command: "cat {passive_recon_module:passive_dns_resolving} | naabu -silent -c 100 -rate 2000 -p '443,80,81,300,591,593,832,981,1010,1311,1099,2082,2095,2096,2480,3000,3128,3333,4243,4567,4711,4712,4993,5000,5104,5108,5280,5281,5601,5800,6543,7000,7001,7396,7474' || true"
+            requires:
+              - "passive_recon_module:passive_dns_resolving"
+
+        - passive_http_probe:
+            command: "cat {passive_recon_module:passive_port_scan} | httpx -silent -t 200 | sort -u"
+            requires:
+              - "passive_recon_module:passive_port_scan"
+
+    - name: "active_recon_module"
+      tasks:
+        - dns_bruteforcing:
+            command: "puredns bruteforce ~/best-dns-wordlist.txt {domain} -q -r ~/resolvers.txt"
+
+        - active_asset_enrichment:
+            command: "cat {active_recon_module:dns_bruteforcing} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true"
+            requires:
+              - "active_recon_module:dns_bruteforcing"
+
+        - active_wordlist:
+            command: "cat {active_recon_module:active_asset_enrichment} | alterx -enrich -silent 2> /dev/null || true"
+            requires:
+              - "active_recon_module:active_asset_enrichment"
+
+        - active_dns_resolving:
+            command: "cat {active_recon_module:active_wordlist} | puredns resolve -r ~/resolvers.txt -l 1000 2> /dev/null"
+            requires:
+              - "active_recon_module:active_wordlist"
+
+        - active_port_scan:
+            command: "cat {active_recon_module:active_dns_resolving} | naabu -silent -c 100 -rate 2000 -p '443,80,81,300,591,593,832,981,1010,1311,1099,2082,2095,2096,2480,3000,3128,3333,4243,4567,4711,4712,4993,5000,5104,5108,5280,5281,5601,5800,6543,7000,7001,7396,7474' || true"
+            requires:
+              - "active_recon_module:active_dns_resolving"
+
+        - active_http_probe:
+            command: "cat {active_recon_module:active_port_scan} | httpx -silent -t 200 | sort -u"
+            requires:
+              - "active_recon_module:active_port_scan"
+
+    - name: "misc_module"
+      tasks:
+        - tls_grabber:
+            command: "cat {passive_recon_module:passive_http_probe} {active_recon_module:active_http_probe} | sort -u | tlsx -san -cn -silent -resp-only -c 500 | sort -u"
+            requires:
+              - "passive_recon_module:passive_http_probe"
+              - "active_recon_module:active_http_probe"
+
+        - tls_filter:
+            command: "cat {misc_module:tls_grabber} | grep -v {domain} || true"
+            requires:
+              - "misc_module:tls_grabber"
+
+        - passive_records_dump:
+            command: "cat {passive_recon_module:passive_dns_resolving} | dnsx -silent -recon -resp"
+            requires:
+              - "passive_recon_module:passive_dns_resolving"
+
+        - active_records_dump:
+            command: "cat {active_recon_module:active_dns_resolving} | dnsx -silent -recon -resp"
+            requires:
+              - "active_recon_module:active_dns_resolving"
+
+        - vulnerability_scanner:
+            command: "cat {passive_recon_module:passive_http_probe} | nuclei -c 100 -silent -es low,info"
+            requires:
+              - "passive_recon_module:passive_http_probe"
+
+        - active_vulnerability_scanner:
+            command: "cat {active_recon_module:active_http_probe} | nuclei -c 100 -silent -es low,info"
+            requires:
+              - "active_recon_module:active_http_probe"
