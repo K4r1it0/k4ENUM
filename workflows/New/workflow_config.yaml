@@ -1,6 +1,6 @@
 workflow:
   name: "New"
-  description: ""
+  description: "testsss"
   modules:
     - name: "test"
       tasks:

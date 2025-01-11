@@ -1,56 +1,51 @@
 workflow:
-  name: "test"
-  description: "Passive reconnaissance workflow"
   arguments:
-    - domain: ""
+    - domain: ''
+  description: Passive reconnaissance workflow
   modules:
-    - name: "recon_module"
+    - name: recon_module
       tasks:
         - passive_asset_discovery_v1:
-            command: "subfinder -t 100 -all -silent -d {domain} 2> /dev/null"
-
+            command: subfinder -t 100 -all -silent -d {domain} 2> /dev/null
         - passive_asset_discovery_v2:
-            command: "assetfinder --subs-only {domain} 2> /dev/null"
-
+            command: assetfinder --subs-only {domain} 2> /dev/null
         - asset_enrichment:
-            command: "cat {recon_module:passive_asset_discovery_v1} {recon_module:passive_asset_discovery_v2} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true"
+            command: cat {recon_module:passive_asset_discovery_v1} {recon_module:passive_asset_discovery_v2} | sed 's/\*\.//g' | sort -u | dsieve 2> /dev/null || true
             requires:
-              - "recon_module:passive_asset_discovery_v1"
-              - "recon_module:passive_asset_discovery_v2"
-
+              - recon_module:passive_asset_discovery_v1
+              - recon_module:passive_asset_discovery_v2
         - wordlist_generator:
-            command: "cat {recon_module:asset_enrichment} | alterx -enrich -silent 2> /dev/null || true"
+            command: cat {recon_module:asset_enrichment} | alterx -enrich -silent 2> /dev/null || true
             requires:
-              - "recon_module:asset_enrichment"
-
+              - recon_module:asset_enrichment
         - dns_resolving:
-            command: "cat {recon_module:wordlist_generator} | puredns resolve -r ~/resolvers.txt -l 1000 2> /dev/null"
+            command: cat {recon_module:wordlist_generator} | puredns resolve -r ~/resolvers.txt -l 1000 2> /dev/null
             requires:
-              - "recon_module:wordlist_generator"
+              - recon_module:wordlist_generator
         - port_scanning:
-            command: "cat {recon_module:dns_resolving} | naabu -silent -c 100 -rate 2000 -p '443,80,81,300,591,593,832,981,1010,1311,1099,2082,2095,2096,2480,3000,3128,3333,4243,4567,4711,4712,4993,5000,5104,5108,5280,5281,5601,5800,6543,7000,7001,7396,7474' || true"
+            command: cat {recon_module:dns_resolving} | naabu -silent -c 100 -rate 2000 -p '443,80,81,300,591,593,832,981,1010,1311,1099,2082,2095,2096,2480,3000,3128,3333,4243,4567,4711,4712,4993,5000,5104,5108,5280,5281,5601,5800,6543,7000,7001,7396,7474' || true
             requires:
-              - "recon_module:dns_resolving"
+              - recon_module:dns_resolving
         - http_probing:
-            command: "cat {recon_module:port_scanning} | httpx -silent -t 200 | sort -u"
+            command: cat {recon_module:port_scanning} | httpx -silent -t 200 | sort -u
             requires:
-              - "recon_module:port_scanning"
-              
-    - name: "misc_module"
+              - recon_module:port_scanning
+    - name: misc_module
       tasks:
         - tls_grabber:
-            command: "cat {recon_module:http_probing} | tlsx -san -cn -silent -resp-only -c 500 | sort -u"
+            command: cat {recon_module:http_probing} | tlsx -san -cn -silent -resp-only -c 500 | sort -u
             requires:
-              - "recon_module:http_probing"
+              - recon_module:http_probing
         - tls_filter:
-            command: "cat {misc_module:tls_grabber} | grep -v {domain} || true"
+            command: cat {misc_module:tls_grabber} | grep -v {domain} || true
             requires:
-              - "misc_module:tls_grabber"
+              - misc_module:tls_grabber
         - records_dump:
-            command: "cat {recon_module:dns_resolving} | dnsx -silent -recon -resp"
+            command: cat {recon_module:dns_resolving} | dnsx -silent -recon -resp
             requires:
-              - "recon_module:dns_resolving"
+              - recon_module:dns_resolving
         - vulnerability_scanner:
-            command: "cat {recon_module:http_probing} | nuclei -c 100 -silent -es low,info"
+            command: cat {recon_module:http_probing} | nuclei -c 100 -silent -es low,info
             requires:
-              - "recon_module:http_probing"
+              - recon_module:http_probing
+  name: teste

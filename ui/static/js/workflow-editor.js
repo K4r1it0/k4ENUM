@@ -25,6 +25,7 @@ class WorkflowEditor {
                 workflow: {
                     name: '',  // Initialize empty
                     description: '',  // Initialize empty
+                    arguments: {},  // Initialize empty arguments object
                     modules: []
                 }
             }
@@ -575,76 +576,37 @@ class WorkflowEditor {
     }
 
     generateYaml() {
-        if (!this.currentWorkflow || !this.currentWorkflow.config || !this.currentWorkflow.config.workflow) {
-            return '';
-        }
-
-        // Create a deep copy of the workflow config
-        const workflowCopy = JSON.parse(JSON.stringify(this.currentWorkflow));
-
         // Create an ordered config object
         const orderedConfig = {
             workflow: {
-                name: this.workflowName || workflowCopy.config.workflow.name,
-                description: workflowCopy.config.workflow.description,
+                name: this.currentWorkflow.config.workflow.name || ''
             }
         };
 
-        // Add args if they exist
-        if (workflowCopy.config.workflow.args) {
-            orderedConfig.workflow.args = workflowCopy.config.workflow.args;
+        // Add description if it exists
+        if (this.currentWorkflow.config.workflow.description) {
+            orderedConfig.workflow.description = this.currentWorkflow.config.workflow.description;
         }
 
-        // Process modules and their tasks
-        if (workflowCopy.config.workflow.modules) {
-            orderedConfig.workflow.modules = workflowCopy.config.workflow.modules.map(module => {
-                const newModule = {
-                    name: module.name,
-                    tasks: []
-                };
-
-                if (module.tasks) {
-                    module.tasks.forEach(taskObj => {
-                        const taskName = Object.keys(taskObj)[0];
-                        const task = taskObj[taskName];
-                        const newTask = {
-                            [taskName]: {
-                                command: task.command
-                            }
-                        };
-
-                        // Add requires if it exists and ensure it's an array
-                        if (task.requires) {
-                            const requires = Array.isArray(task.requires) ? task.requires : [task.requires];
-                            if (requires.length > 0) {
-                                newTask[taskName].requires = requires.map(r => r.replace(/^"|"$/g, ''));
-                            }
-                        }
-
-                        // Add args if they exist
-                        if (task.args) {
-                            newTask[taskName].args = task.args;
-                        }
-
-                        newModule.tasks.push(newTask);
-                    });
-                }
-
-                return newModule;
-            });
+        // Add arguments if they exist
+        if (this.currentWorkflow.config.workflow.arguments && Object.keys(this.currentWorkflow.config.workflow.arguments).length > 0) {
+            orderedConfig.workflow.arguments = this.currentWorkflow.config.workflow.arguments;
         }
 
-        // Generate YAML with the ordered config
-        const yaml = jsyaml.dump(orderedConfig, {
+        // Add modules if they exist
+        if (this.currentWorkflow.config.workflow.modules) {
+            orderedConfig.workflow.modules = this.currentWorkflow.config.workflow.modules;
+        }
+
+        // Convert to YAML with proper formatting
+        return jsyaml.dump(orderedConfig, {
             indent: 2,
             lineWidth: -1,
+            noRefs: true,
             sortKeys: false,
             quotingType: '"',
-            forceQuotes: true,
-            noCompatMode: true
+            forceQuotes: true
         });
-
-        return yaml;
     }
 
     updateYamlView() {
@@ -655,8 +617,8 @@ class WorkflowEditor {
         }
 
         try {
-            // Use the original YAML from API if available, otherwise generate it
-            const yaml = this.originalYaml || this.generateYaml();
+            // Always generate fresh YAML when updating the view
+            const yaml = this.generateYaml();
 
             // Create a new code element to ensure clean highlighting
             const newCode = document.createElement('code');
@@ -742,7 +704,7 @@ class WorkflowEditor {
             const config = this.currentWorkflow.config;
             
             // Check if workflow has arguments
-            const hasArguments = config?.workflow?.arguments || [];
+            const hasArguments = config?.workflow?.args || [];
             
             if (hasArguments.length > 0) {
                 // Clear previous arguments
@@ -956,15 +918,15 @@ class WorkflowEditor {
                 delete this.currentWorkflow.config.workflow.args;
             }
 
-            // Update UI
+            // Update UI and YAML
             this.updateWorkflowTitle(name);
+            // Force regenerate YAML by clearing originalYaml
+            this.originalYaml = null;
+            this.updateYamlView();
 
             // Clean up
             modal.hide();
             createButton.removeEventListener('click', saveHandler);
-            
-            // Update YAML view
-            this.updateYamlView();
 
             // Reset modal title and button text
             if (modalTitle) {
