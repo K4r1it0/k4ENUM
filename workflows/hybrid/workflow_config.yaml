@@ -19,7 +19,7 @@ workflow:
               - "passive_recon_module:passive_asset_discovery_v2"
 
         - passive_wordlist:
-            command: "cat {passive_recon_module:passive_asset_enrichment} | alterx -enrich -silent 2> /dev/null || true"
+            command: "cat {passive_recon_module:passive_asset_enrichment} | alterx -enrich -silent 2> /dev/null || true | grep {domain}"
             requires:
               - "passive_recon_module:passive_asset_enrichment"
 
@@ -49,7 +49,7 @@ workflow:
               - "active_recon_module:dns_bruteforcing"
 
         - active_wordlist:
-            command: "cat {active_recon_module:active_asset_enrichment} | alterx -enrich -silent 2> /dev/null || true"
+            command: "cat {active_recon_module:active_asset_enrichment} | alterx -enrich -silent 2> /dev/null || true | grep {domain}"
             requires:
               - "active_recon_module:active_asset_enrichment"
 
