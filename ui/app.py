@@ -362,7 +362,7 @@ def run_workflow(name):
         bash_cmd = [
             "bash",
             "-c",
-            f"cd {PROJECT_ROOT} && source venv/bin/activate && python scan.py -c -w {name} {' '.join(['-a'] + arg_list) if arg_list else ''}"
+            f"cd {PROJECT_ROOT} && source venv/bin/activate && python3 scan.py -c -w {name} {' '.join(['-a'] + arg_list) if arg_list else ''}"
         ]
         print(bash_cmd)
         # Start the process
