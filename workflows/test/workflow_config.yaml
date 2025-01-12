@@ -1,6 +1,6 @@
 workflow:
   arguments:
-    - domain: ''
+    domain: ''
   description: Passive reconnaissance workflow
   modules:
     - name: recon_module
