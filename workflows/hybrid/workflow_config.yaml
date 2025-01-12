@@ -1,7 +1,7 @@
 workflow:
   name: "hybrid_recon"
   description: "Optimized hybrid reconnaissance workflow"
-  args:
+  arguments:
     - domain: ""
   modules:
     - name: "passive_recon_module"
