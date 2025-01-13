@@ -1,8 +1,8 @@
 workflow:
   name: "hybrid_recon"
   description: "Optimized hybrid reconnaissance workflow"
-  args:
-    - domain: ""
+  arguments:
+    domain: ""
   modules:
     - name: "passive_recon_module"
       tasks:
@@ -13,7 +13,7 @@ workflow:
             command: "assetfinder --subs-only {domain} 2> /dev/null"
         
         - passive_asset_enrichment:
-            command: "cat {passive_recon_module:passive_asset_discovery_v1} {passive_recon_module:passive_asset_discovery_v2} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true"
+            command: "cat {passive_recon_module:passive_asset_discovery_v1} {passive_recon_module:passive_asset_discovery_v2} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true | grep {domain}"
             requires:
               - "passive_recon_module:passive_asset_discovery_v1"
               - "passive_recon_module:passive_asset_discovery_v2"
@@ -44,7 +44,7 @@ workflow:
             command: "puredns bruteforce ~/best-dns-wordlist.txt {domain} -q -r ~/resolvers.txt"
 
         - active_asset_enrichment:
-            command: "cat {active_recon_module:dns_bruteforcing} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true"
+            command: "cat {active_recon_module:dns_bruteforcing} | sed 's/\\*\\.//g' | sort -u | dsieve 2> /dev/null || true | grep {domain}"
             requires:
               - "active_recon_module:dns_bruteforcing"
 

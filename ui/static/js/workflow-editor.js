@@ -704,16 +704,15 @@ class WorkflowEditor {
             const config = this.currentWorkflow.config;
             
             // Check if workflow has arguments
-            const hasArguments = config?.workflow?.args || [];
+            const hasArguments = config?.workflow?.arguments || {};
             
-            if (hasArguments.length > 0) {
+            if (Object.keys(hasArguments).length > 0) {
                 // Clear previous arguments
                 const form = document.getElementById('argumentsForm');
                 form.innerHTML = '';
                 
                 // Add form fields for each argument
-                hasArguments.forEach(arg => {
-                    const argName = Object.keys(arg)[0];
+                Object.entries(hasArguments).forEach(([argName, defaultValue]) => {
                     const div = document.createElement('div');
                     div.className = 'mb-3';
                     div.innerHTML = `
