@@ -20,6 +20,53 @@ luigi.interface.core.log_level = 'ERROR'
 
 console = Console()
 
+def setup_luigi_config(use_central_scheduler=False, distributed=False):
+    """Setup Luigi configuration based on command-line arguments"""
+    # Load template configuration
+    template_path = "luigi.cfg.template"
+    if os.path.exists(template_path):
+        with open(template_path) as f:
+            config_text = f.read()
+    else:
+        # Default configuration if template doesn't exist
+        config_text = """[core]
+parallel-scheduling=true
+
+[scheduler]
+record_task_history=true
+remove_delay=1800
+retry_delay=300
+state-path=/tmp/luigi-state.pickle
+
+[worker]
+keep_alive=true
+ping_interval=20
+wait_interval=20
+max_reschedules=3
+timeout=3600
+
+[retcode]
+already_running=10
+missing_data=20
+not_run=25
+task_failed=30
+scheduling_error=35
+unhandled_exception=40"""
+    
+    # Create temporary config file
+    config_path = "luigi.cfg"
+    with open(config_path, 'w') as f:
+        if use_central_scheduler:
+            # Add central scheduler configuration
+            f.write("[core]\n")
+            f.write("default-scheduler-host=localhost\n")
+            f.write("default-scheduler-port=8082\n")
+            f.write("parallel-scheduling=true\n\n")
+        f.write(config_text)
+    
+    # Load configuration into Luigi
+    luigi.configuration.LuigiConfigParser.reload()
+
 def show_banner():
     banner = """[cyan]
     ██╗  ██╗██╗  ██╗███████╗███╗   ██╗██╗   ██╗███╗   ███╗
@@ -164,6 +211,9 @@ def main():
             return
         
         elif args.command == 'run':
+            # Setup Luigi configuration
+            setup_luigi_config(args.central_scheduler, args.distributed)
+            
             # Parse workflow arguments
             workflow_args = {}
             if args.args:
@@ -221,11 +271,18 @@ def main():
             console.print("\n[cyan]Results locations:[/cyan]")
             for framework in frameworks:
                 console.print(f"[green]- {framework.name}:[/green] {framework.save_dir}")
+            
+            # Cleanup temporary Luigi config
+            if os.path.exists("luigi.cfg"):
+                os.remove("luigi.cfg")
                 
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
         for framework in frameworks:
             framework._update_task_status("failed")
+        # Cleanup temporary Luigi config
+        if os.path.exists("luigi.cfg"):
+            os.remove("luigi.cfg")
         exit(1)
 
 if __name__ == "__main__":
