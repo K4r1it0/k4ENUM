@@ -159,62 +159,57 @@ def remove_node(args):
     node_manager.remove_node(args.name)
 
 def main():
-    parser = argparse.ArgumentParser(description="k4ENUM - Modular Domain Enumeration Framework")
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    parser = argparse.ArgumentParser(description='Modular domain enumeration framework')
+    parser.add_argument('-w', '--workflow', help='Workflow to run', nargs='+')
+    parser.add_argument('-l', '--list', action='store_true', help='List workflows')
+    parser.add_argument('-a', '--args', nargs='+', help='Arguments (key=value)')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser.add_argument('-c', action='store_true', help='Use central Luigi scheduler')
+    parser.add_argument('-d', '--distributed', action='store_true', help='Enable distributed execution')
     
-    # List workflows command
-    list_parser = subparsers.add_parser('list', help='List available workflows')
-    
-    # Run workflow command
-    run_parser = subparsers.add_parser('run', help='Run workflows')
-    run_parser.add_argument('-w', '--workflow', nargs='+', required=True, help='Workflow(s) to run')
-    run_parser.add_argument('-a', '--args', nargs='+', help='Arguments in key=value format')
-    run_parser.add_argument('-c', '--central-scheduler', action='store_true', help='Use central scheduler')
-    run_parser.add_argument('-d', '--distributed', action='store_true', help='Enable distributed execution')
-    
-    # Node management commands
-    nodes_parser = subparsers.add_parser('nodes', help='Node management commands')
-    node_subparsers = nodes_parser.add_subparsers(dest='node_command', help='Node commands')
-    
-    # List nodes
-    node_list_parser = node_subparsers.add_parser('list', help='List registered nodes')
-    
-    # Register node
-    node_register_parser = node_subparsers.add_parser('register', help='Register a new node')
-    node_register_parser.add_argument('name', help='Node name')
-    node_register_parser.add_argument('host', help='Node hostname or IP')
-    node_register_parser.add_argument('username', help='SSH username')
-    node_register_parser.add_argument('key_file', help='Path to SSH private key')
-    node_register_parser.add_argument('--port', type=int, default=22, help='SSH port (default: 22)')
-    node_register_parser.add_argument('--cores', type=int, help='Number of cores to use (default: auto-detect)')
-    
-    # Remove node
-    node_remove_parser = node_subparsers.add_parser('remove', help='Remove a registered node')
-    node_remove_parser.add_argument('name', help='Node name')
+    # Node management arguments
+    node_group = parser.add_argument_group('Node management')
+    node_group.add_argument('--nodes', choices=['list', 'register', 'remove'], help='Node management commands')
+    node_group.add_argument('--name', help='Node name for register/remove commands')
+    node_group.add_argument('--host', help='Node hostname/IP for register command')
+    node_group.add_argument('--username', help='SSH username for register command')
+    node_group.add_argument('--key-file', help='SSH private key file for register command')
+    node_group.add_argument('--port', type=int, default=22, help='SSH port for register command (default: 22)')
+    node_group.add_argument('--cores', type=int, help='Number of cores to use (default: auto-detect)')
     
     args = parser.parse_args()
     
     try:
         show_banner()
         
-        if args.command == 'list':
+        if args.list:
             list_workflows()
             return
         
-        elif args.command == 'nodes':
-            if args.node_command == 'list':
+        if args.nodes:
+            if args.nodes == 'list':
                 list_nodes()
-            elif args.node_command == 'register':
+            elif args.nodes == 'register':
+                if not all([args.name, args.host, args.username, args.key_file]):
+                    console.print("[red]Error: register command requires --name, --host, --username, and --key-file[/red]")
+                    return
                 register_node(args)
-            elif args.node_command == 'remove':
+            elif args.nodes == 'remove':
+                if not args.name:
+                    console.print("[red]Error: remove command requires --name[/red]")
+                    return
                 remove_node(args)
             return
         
-        elif args.command == 'run':
-            # Setup Luigi configuration
-            setup_luigi_config(args.central_scheduler, args.distributed)
-            
-            # Parse workflow arguments
+        if not args.workflow:
+            console.print("[red]Error: Please specify at least one workflow (-w)[/red]")
+            return
+        
+        # Setup Luigi configuration
+        setup_luigi_config(args.c, args.distributed)
+        
+        try:
+            # Parse arguments
             workflow_args = {}
             if args.args:
                 workflow_args.update(dict(arg.split('=', 1) for arg in args.args))
@@ -254,7 +249,7 @@ def main():
             # Run all modules together
             success = luigi.build(
                 all_tasks,
-                local_scheduler=not args.central_scheduler,
+                local_scheduler=not args.c,
                 detailed_summary=True,
                 workers=len(all_tasks)  # One worker per task for maximum parallelism
             )
@@ -271,7 +266,8 @@ def main():
             console.print("\n[cyan]Results locations:[/cyan]")
             for framework in frameworks:
                 console.print(f"[green]- {framework.name}:[/green] {framework.save_dir}")
-            
+                
+        finally:
             # Cleanup temporary Luigi config
             if os.path.exists("luigi.cfg"):
                 os.remove("luigi.cfg")
