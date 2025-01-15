@@ -25,13 +25,38 @@ class NodeManager:
         with open(self.nodes_file, 'w') as f:
             yaml.dump(config, f, default_flow_style=False)
     
+    def _load_ssh_key(self, key_file):
+        """Load SSH key of any supported type"""
+        key_file = os.path.expanduser(key_file)
+        try:
+            # Try loading as RSA key
+            return paramiko.RSAKey.from_private_key_file(key_file)
+        except:
+            try:
+                # Try loading as ED25519 key
+                return paramiko.Ed25519Key.from_private_key_file(key_file)
+            except:
+                try:
+                    # Try loading as DSS key
+                    return paramiko.DSSKey.from_private_key_file(key_file)
+                except:
+                    try:
+                        # Try loading as ECDSA key
+                        return paramiko.ECDSAKey.from_private_key_file(key_file)
+                    except Exception as e:
+                        raise Exception(f"Failed to load SSH key: {str(e)}")
+    
     def register_node(self, name, host, username, key_file, port=22, cores=None):
         """Register a new remote node"""
         # Validate SSH connection
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(key_file))
+            
+            # Load SSH key
+            key = self._load_ssh_key(key_file)
+            
+            # Connect to remote host
             ssh.connect(host, port=port, username=username, pkey=key)
             
             # Get core count if not specified
@@ -116,7 +141,11 @@ class NodeManager:
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(node['key_file']))
+            
+            # Load SSH key
+            key = self._load_ssh_key(node['key_file'])
+            
+            # Test connection
             ssh.connect(node['host'], port=node['port'], username=node['username'], pkey=key)
             console.print(f"[green]Successfully connected to node {name}[/green]")
             return True
