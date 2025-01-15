@@ -62,32 +62,50 @@ class NodeManager:
         if not os.path.exists(key_file):
             raise Exception(f"SSH key file not found: {key_file}")
         
-        errors = []
-        # Try loading as RSA key
-        try:
-            return paramiko.RSAKey.from_private_key_file(key_file)
-        except Exception as e:
-            errors.append(f"RSA: {str(e)}")
+        # Read key file content
+        with open(key_file, 'r') as f:
+            key_content = f.read()
+            console.print(f"[dim]Key file content length: {len(key_content)} chars[/dim]")
         
-        # Try loading as ED25519 key
+        errors = []
+        
+        # Try loading as ED25519 key first (since that's what we're using)
         try:
-            return paramiko.Ed25519Key.from_private_key_file(key_file)
+            console.print("[dim]Trying ED25519 format...[/dim]")
+            key = paramiko.Ed25519Key.from_private_key_file(key_file)
+            console.print("[dim]Successfully loaded as ED25519[/dim]")
+            return key
         except Exception as e:
             errors.append(f"ED25519: {str(e)}")
         
-        # Try loading as DSS key
+        # Try loading as RSA key
         try:
-            return paramiko.DSSKey.from_private_key_file(key_file)
+            console.print("[dim]Trying RSA format...[/dim]")
+            key = paramiko.RSAKey.from_private_key_file(key_file)
+            console.print("[dim]Successfully loaded as RSA[/dim]")
+            return key
         except Exception as e:
-            errors.append(f"DSS: {str(e)}")
+            errors.append(f"RSA: {str(e)}")
         
         # Try loading as ECDSA key
         try:
-            return paramiko.ECDSAKey.from_private_key_file(key_file)
+            console.print("[dim]Trying ECDSA format...[/dim]")
+            key = paramiko.ECDSAKey.from_private_key_file(key_file)
+            console.print("[dim]Successfully loaded as ECDSA[/dim]")
+            return key
         except Exception as e:
             errors.append(f"ECDSA: {str(e)}")
         
-        raise Exception(f"Failed to load SSH key. Tried formats:\n" + "\n".join(errors))
+        # Try loading as DSS key
+        try:
+            console.print("[dim]Trying DSS format...[/dim]")
+            key = paramiko.DSSKey.from_private_key_file(key_file)
+            console.print("[dim]Successfully loaded as DSS[/dim]")
+            return key
+        except Exception as e:
+            errors.append(f"DSS: {str(e)}")
+        
+        raise Exception(f"Failed to load SSH key. Errors:\n" + "\n".join(errors))
     
     def register_node(self, name, host, username, key_file, port=22, cores=None):
         """Register a new remote node"""
@@ -104,7 +122,7 @@ class NodeManager:
             
             # Connect to remote host
             console.print(f"[dim]Connecting to {host}...[/dim]")
-            ssh.connect(host, port=port, username=username, pkey=key)
+            ssh.connect(hostname=host, port=port, username=username, pkey=key)
             console.print(f"[dim]Successfully connected[/dim]")
             
             # Get core count if not specified
@@ -150,21 +168,37 @@ class NodeManager:
     def _setup_node(self, ssh, node):
         """Setup remote node with required dependencies"""
         commands = [
-            # Create virtual environment
-            'python3 -m venv ~/k4enum_venv',
-            # Activate venv and install dependencies
-            '. ~/k4enum_venv/bin/activate && pip install luigi paramiko pyyaml rich',
+            # Check Python version
+            'python3 --version',
+            # Install required system packages
+            'apt update && apt install -y python3-venv python3-pip',
+            # Create virtual environment (with system packages to avoid pip issues)
+            'python3 -m venv ~/k4enum_venv --system-site-packages',
+            # Update pip
+            '. ~/k4enum_venv/bin/activate && pip install --upgrade pip',
+            # Install dependencies
+            '. ~/k4enum_venv/bin/activate && pip install "luigi>=3.4.0" "paramiko>=3.4.0" "pyyaml>=6.0.1" "rich>=13.7.0"',
             # Create work directory
             'mkdir -p ~/k4enum_work'
         ]
         
         for cmd in commands:
             console.print(f"[dim]Running: {cmd}[/dim]")
-            _, stdout, stderr = ssh.exec_command(cmd)
+            stdin, stdout, stderr = ssh.exec_command(cmd)
             exit_status = stdout.channel.recv_exit_status()
+            
+            # Get command output
+            out = stdout.read().decode().strip()
+            err = stderr.read().decode().strip()
+            
             if exit_status != 0:
-                error = stderr.read().decode().strip()
-                raise Exception(f"Command failed: {error}")
+                console.print(f"[red]Command failed with status {exit_status}[/red]")
+                console.print(f"[red]stdout: {out}[/red]")
+                console.print(f"[red]stderr: {err}[/red]")
+                raise Exception(f"Command failed: {err if err else out}")
+            
+            if out:
+                console.print(f"[dim]Output: {out}[/dim]")
             console.print(f"[dim]Command completed successfully[/dim]")
     
     def remove_node(self, name):
