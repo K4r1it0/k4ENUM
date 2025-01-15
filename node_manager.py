@@ -16,8 +16,15 @@ class NodeManager:
         if os.path.exists(self.nodes_file):
             with open(self.nodes_file) as f:
                 config = yaml.safe_load(f)
+                if config is None:
+                    config = {'nodes': {'remote_nodes': []}}
                 return config.get('nodes', {}).get('remote_nodes', [])
-        return []
+        else:
+            # Create initial nodes file structure
+            config = {'nodes': {'remote_nodes': []}}
+            with open(self.nodes_file, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+            return []
     
     def _save_nodes(self):
         """Save nodes configuration to YAML file"""
