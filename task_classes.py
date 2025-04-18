@@ -3,6 +3,7 @@ import os
 import subprocess
 import re
 from rich.console import Console
+from storage_manager import StorageManager
 
 console = Console()
 
@@ -15,8 +16,16 @@ class TaskExecution(luigi.Task):
     args = luigi.DictParameter(default={})
     dependencies = luigi.ListParameter(default=[])
     
-    # Class variable to store task instances
+    # Class variables
     _task_registry = {}
+    _storage_manager = None
+    
+    @classmethod
+    def get_storage_manager(cls):
+        """Get or create storage manager instance"""
+        if cls._storage_manager is None:
+            cls._storage_manager = StorageManager()
+        return cls._storage_manager
     
     def get_task_id(self):
         """Get unique task identifier"""
@@ -27,17 +36,24 @@ class TaskExecution(luigi.Task):
         """Override task family to show module.taskname format"""
         return f"{self.module_name}:{self.name}"
     
+    def get_shared_path(self, directory, filename):
+        """Get path in shared storage"""
+        storage = self.get_storage_manager()
+        return storage.get_path(directory, filename)
+    
     def _update_status(self, status, output=None):
-        """Update task status using file extensions"""
+        """Update task status using file extensions in shared storage"""
         task_id = self.get_task_id()
+        storage = self.get_storage_manager()
+        
         # Remove any existing status files
         for ext in ['.pending', '.running', '.done', '.failed']:
-            status_file = os.path.join(self.save_dir, f"{task_id}{ext}")
+            status_file = storage.get_path('tasks', f"{task_id}{ext}")
             if os.path.exists(status_file):
                 os.remove(status_file)
         
-        # Create new status file
-        status_file = os.path.join(self.save_dir, f"{task_id}.{status}")
+        # Create new status file in shared storage
+        status_file = storage.get_path('tasks', f"{task_id}.{status}")
         if output:
             with open(status_file, 'w') as f:
                 f.write(output)
@@ -45,110 +61,76 @@ class TaskExecution(luigi.Task):
             open(status_file, 'w').close()  # Create empty file
     
     def get_output_path(self, task_ref):
-        """Get the output path for a task reference"""
+        """Get the output path for a task reference from shared storage"""
         if ":" in task_ref:  # Cross-module reference
             module_name, task_name = task_ref.split(":")
             task = self._task_registry.get(f"{module_name}:{task_name}")
             if task:
                 return task.output().path
             # If task not found, construct the path manually
-            return os.path.join(self.save_dir, f"{module_name}:{task_name}.done")
+            return self.get_shared_path('tasks', f"{module_name}:{task_name}.done")
         else:  # Same module reference
             task = self._task_registry.get(f"{self.module_name}:{task_ref}")
             if task:
                 return task.output().path
             # If task not found, construct the path manually
-            return os.path.join(self.save_dir, f"{self.module_name}:{task_ref}.done")
+            return self.get_shared_path('tasks', f"{self.module_name}:{task_ref}.done")
     
     def get_argument_value(self, arg_name):
-        """Get argument value with proper precedence:
-        1. Command-line provided args
-        2. Task-level arguments
-        3. Module-level arguments
-        """
+        """Get argument value with proper precedence"""
         if arg_name in self.args:
             return self.args[arg_name]
         if 'arguments' in self.config and arg_name in self.config['arguments']:
             return self.config['arguments'][arg_name]
         raise ValueError(f"Argument '{arg_name}' not found in any scope")
     
-    def output(self):
-        # Use .done file for Luigi's completion tracking
-        return luigi.LocalTarget(os.path.join(self.save_dir, f"{self.get_task_id()}.done"))
-    
-    def requires(self):
-        # Return dependencies if any
-        if self.dependencies:
-            # Check if any dependencies are not complete
-            incomplete_deps = [dep for dep in self.dependencies if not dep.complete()]
-            if incomplete_deps:
-                dep_names = [f"{dep.module_name}:{dep.name}" for dep in incomplete_deps]
-                # Update status to pending with dependency information
-                self._update_status("pending", f"Waiting for dependencies to complete: {', '.join(dep_names)}")
-            return self.dependencies
-        return []
-    
     def run(self):
+        """Execute the task"""
         try:
-            # First check if all dependencies are complete
-            deps = self.requires()
-            if deps:
-                # Wait for all dependencies to complete
-                incomplete_deps = [dep for dep in deps if not dep.complete()]
-                if incomplete_deps:
-                    dep_names = [f"{dep.module_name}:{dep.name}" for dep in incomplete_deps]
-                    if self.args.get('verbose'):
-                        console.print(f"[yellow]Waiting for dependencies to complete: {', '.join(dep_names)}[/yellow]")
-                    yield deps
+            self._update_status('running')
             
-            # Update status to running
-            self._update_status("running")
+            # Prepare command with arguments
+            command = self.config['command']
+            if '{' in command and '}' in command:
+                # Replace argument placeholders
+                for arg_name in re.findall(r'{([^}]+)}', command):
+                    arg_value = self.get_argument_value(arg_name)
+                    command = command.replace(f"{{{arg_name}}}", str(arg_value))
             
-            # Regular task execution
-            cmd = self.config['command']
+            # Create results directory in shared storage
+            results_dir = self.get_shared_path('results', self.get_task_id())
+            os.makedirs(results_dir, exist_ok=True)
             
-            # Replace all references in curly braces
-            for match in re.finditer(r'\{([^}]+)\}', cmd):
-                ref = match.group(1)
-                try:
-                    # Try to get argument value first
-                    value = self.get_argument_value(ref)
-                    cmd = cmd.replace(match.group(0), str(value))
-                except ValueError:
-                    # If not an argument, treat as task output reference
-                    output_path = self.get_output_path(ref)
-                    cmd = cmd.replace(match.group(0), output_path)
+            # Execute command
+            process = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                cwd=results_dir
+            )
             
-            console.print(f"[cyan]Running {self.get_task_id()}[/cyan]")
-            result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+            # Write output to shared storage
+            output_file = self.get_shared_path('results', f"{self.get_task_id()}.output")
+            with open(output_file, 'w') as f:
+                f.write(f"STDOUT:\n{process.stdout}\n\nSTDERR:\n{process.stderr}")
             
-            # Update status to completed with output
-            output_text = result.stdout or result.stderr
-            self._update_status("done", output_text)
+            if process.returncode != 0:
+                raise Exception(f"Command failed with exit code {process.returncode}")
             
-            console.print(f"[green]Completed {self.get_task_id()}[/green]")
-                    
-        except subprocess.CalledProcessError as e:
-            error_output = e.stderr or e.stdout
-            self._update_status("failed", error_output.strip())
-            if self.args.get('verbose'):
-                console.print(f"[red]Error in {self.get_task_id()}: {error_output.strip()}[/red]")
-            else:
-                console.print(f"[red]Task {self.get_task_id()} failed. Run with -v for details.[/red]")
-            raise
+            # Create done file
+            with self.output().open('w') as f:
+                f.write(f"Task completed at {results_dir}")
+            
+            self._update_status('done')
+            
         except Exception as e:
-            error_msg = str(e)
-            self._update_status("failed", error_msg)
-            if self.args.get('verbose'):
-                error_msg = "[red]Error in {}: {} | Failed command: {}[/red]".format(
-                    self.get_task_id(),
-                    error_msg.strip().replace('\n', ' '),
-                    cmd.strip().replace('\n', ' ')
-                )
-                console.print(error_msg)
-            else:
-                console.print(f"[red]Task {self.get_task_id()} failed. Run with -v for details.[/red]")
+            self._update_status('failed', str(e))
             raise
+    
+    def output(self):
+        """Define task output file in shared storage"""
+        return luigi.LocalTarget(self.get_shared_path('tasks', f"{self.get_task_id()}.done"))
 
 class ModuleTask(luigi.Task):
     """Container task that represents a single module"""
@@ -156,12 +138,20 @@ class ModuleTask(luigi.Task):
     save_dir = luigi.Parameter()
     config = luigi.DictParameter()
     
-    # Class variable to store the loader
+    # Class variables
     _loader = None
+    _storage_manager = None
     
     @classmethod
     def set_loader(cls, loader):
         cls._loader = loader
+    
+    @classmethod
+    def get_storage_manager(cls):
+        """Get or create storage manager instance"""
+        if cls._storage_manager is None:
+            cls._storage_manager = StorageManager()
+        return cls._storage_manager
     
     @property
     def task_family(self):
@@ -169,15 +159,17 @@ class ModuleTask(luigi.Task):
         return self.name
     
     def _update_status(self, status, output=None):
-        """Update module status using file extensions"""
+        """Update module status using file extensions in shared storage"""
+        storage = self.get_storage_manager()
+        
         # Remove any existing status files
         for ext in ['.pending', '.running', '.done', '.failed']:
-            status_file = os.path.join(self.save_dir, f"{self.name}{ext}")
+            status_file = storage.get_path('tasks', f"{self.name}{ext}")
             if os.path.exists(status_file):
                 os.remove(status_file)
         
         # Create new status file
-        status_file = os.path.join(self.save_dir, f"{self.name}.{status}")
+        status_file = storage.get_path('tasks', f"{self.name}.{status}")
         with open(status_file, 'w') as f:
             if output:
                 f.write(output)
@@ -201,19 +193,6 @@ class ModuleTask(luigi.Task):
         ]
     
     def output(self):
-        return luigi.LocalTarget(os.path.join(self.save_dir, f"{self.name}.done"))
-    
-    def run(self):
-        try:
-            # Update status to running
-            self._update_status("running")
-            
-            # Wait for all tasks to complete
-            yield self.requires()
-            
-            # If we get here, all tasks completed successfully
-            self._update_status("done", f"Module {self.name} completed successfully")
-            
-        except Exception as e:
-            self._update_status("failed", f"Error: {str(e)}")
-            raise
+        """Define module output file in shared storage"""
+        storage = self.get_storage_manager()
+        return luigi.LocalTarget(storage.get_path('tasks', f"{self.name}.done"))

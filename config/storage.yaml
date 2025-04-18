@@ -1,0 +1,18 @@
+storage:
+  type: "nfs"
+  server:
+    path: "/k4enum/shared"  # Base path for shared storage on main server
+    exports:
+      - path: "/k4enum/shared"
+        permissions: "rw"
+        options: "sync,no_subtree_check"
+  client:
+    mount_point: "/k4enum/shared"  # Where to mount on worker nodes
+    options: "rw,sync"
+  
+  # Directory structure within shared storage
+  directories:
+    - results     # For task outputs
+    - temp        # For temporary files
+    - logs        # For centralized logging
+    - tasks       # For task status files 
