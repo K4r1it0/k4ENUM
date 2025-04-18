@@ -1,8 +1,0 @@
-nodes:
-  remote_nodes:
-  - cores: 4
-    host: 75.119.159.178
-    key_file: /Users/abdelrahman/.ssh/id_ed25519
-    name: worker1
-    port: 22
-    username: root
